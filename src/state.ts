@@ -227,12 +227,12 @@ export function sums(txs: Transaction[]): Sums {
  * Sätter kategori på transaktionerna och lär sig mottagarna (om "Kom ihåg" är på).
  * Returnerar antal andra transaktioner som följde med.
  */
-export function assignCategory(idList: string[], patterns: string[], catId: string | null): number {
+export function assignCategory(idList: string[], patterns: string[], catId: string | null, learn = S.ui.learn): number {
   const ids = new Set(idList);
   let extra = 0;
   for (const t of S.transactions) if (ids.has(t.id)) { t.categoryId = catId; t.manual = true; }
   const pats = new Set(patterns.filter(Boolean));
-  if (S.ui.learn && pats.size) {
+  if (learn && pats.size) {
     S.rules = S.rules.filter((r) => !(r.learned && pats.has(r.pattern)));
     if (catId) {
       for (const p of pats) S.rules.unshift({ pattern: p, categoryId: catId, learned: true });

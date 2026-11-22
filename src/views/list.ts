@@ -34,12 +34,12 @@ export function renderList(main: HTMLElement): void {
     <div style="overflow-x:auto"><table class="txtable"><thead><tr><th>Datum</th><th>Beskrivning</th><th>Konto</th><th class="num">Belopp</th><th>Kategori</th><th></th></tr></thead><tbody>
     ${txs.slice(0, 600).map((t) => {
       const name = displayName(t);
-      return `<tr><td class="num" style="text-align:left">${t.date}</td>
+      return `<tr class="txrow" data-open="${esc(t.id)}"><td class="num" style="text-align:left">${t.date}</td>
       <td>${markIcon(t.mark)}<b style="font-weight:550">${esc(name)}</b>${name !== t.description ? sub(`(${esc(t.description)})`) : ''}${t.kind && t.kind !== t.description ? sub(`· ${esc(t.kind)}`) : ''}
         ${t.note ? `<div class="lnote">📝 ${esc(t.note)}</div>` : ''}</td><td class="muted">${esc(t.source)}</td>
       <td class="num ${t.amount < 0 ? '' : 'pos'}">${fmtKr2.format(t.amount)}${t.currency !== 'SEK' ? ' ' + esc(t.currency) : ''}</td>
       <td><span class="dot" style="background:${catOf(t).color}"></span><select data-id="${esc(t.id)}">${opts(t.categoryId)}</select></td>
-      <td><button class="iconbtn" data-edit="${esc(t.id)}" title="Ändra namn, markering, anteckning">✎</button></td></tr>`;
+      <td><button class="iconbtn" data-edit="${esc(t.id)}" title="Ändra kategori, mottagare, anteckning">✎</button></td></tr>`;
     }).join('')}
     </tbody></table></div>${txs.length > 600 ? `<p class="muted">Visar de 600 senaste. Använd sök eller period för att smalna av.</p>` : ''}</div>`;
 
@@ -55,7 +55,10 @@ export function renderList(main: HTMLElement): void {
   };
   fc.onchange = () => { listFilter.cat = fc.value; renderList(main); };
   fm.onchange = () => { listFilter.mark = fm.value; renderList(main); };
-  for (const b of $$('[data-edit]', main)) b.onclick = () => openEditor([b.dataset.edit!]);
+  // Tryck på raden (utom kategorivalet) för att redigera kategori, mottagare och anteckning
+  for (const tr of $$('tr[data-open]', main)) {
+    tr.onclick = (e) => { if (!(e.target as HTMLElement).closest('select')) openEditor([tr.dataset.open!]); };
+  }
   for (const s of $$<HTMLSelectElement>('select[data-id]', main)) {
     s.onchange = () => {
       const t = S.transactions.find((x) => x.id === s.dataset.id);
