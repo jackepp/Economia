@@ -170,20 +170,21 @@ const DEFAULT_RULES = {
   rest:['max ','pinchos','streetfood','mcdonald','burger king','espresso house','wayne','pressbyr','foodora','wolt','uber eats','sushi','pizz','restaurang','cafe','café','starbucks','subway','bastard burgers','o learys','7-eleven'],
   boende:['hyra','brf','hsb','vattenfall','ellevio','fortum','tibber','e.on','eon ','göteborg energi','hyresvärd','bostad'],
   rakn:['telia','tele2','telenor','tre ','hallon','comviq','bahnhof','bredband','com hem','tele 2','csn','folksam','if skadef','länsförs','trygg-hansa','trygg hansa','skatteverket','ica försäkr','akassa','a-kassa','debiteringsavgift'],
-  transp:['sl ','storstockholms','västtrafik','skånetrafiken','sj ','uber','bolt','circle k','preem','okq8','st1','ingo','easypark','parkering','aimo park','voi','lime','tier','flygbussarna'],
-  shop:['amazon','zalando','h&m','hm ','clas ohlson','ikea','elgiganten','webhallen','kjell','stadium','åhléns','ahlens','cdon','temu','shein','jula','biltema','normal','lindex','kappahl','dressmann','apple store','power '],
-  noje:['spotify','netflix','hbo','disney','viaplay','youtube','apple.com','google','steam','playstation','xbox','nintendo','filmstaden','sf bio','ticketmaster','tidal','audible','storytel','bokus','adlibris','bookbeat','svenska bio'],
-  halsa:['apotek','apotea','kronans','vårdcentral','tandläk','sats','friskis','nordic wellness','actic','1177','folktandvården','gym'],
+  transp:['sl ','storstockholms','västtrafik','skånetrafiken','sj ','uber','bolt','circle k','preem','okq8','st1','ingo','easypark','parkering','aimo park','parkster','voi','lime','tier','flygbussarna'],
+  shop:['amazon','zalando','h&m','hm ','clas ohlson','ikea','elgiganten','webhallen','kjell','stadium','åhléns','ahlens','cdon','temu','shein','jula','biltema','normal','lindex','kappahl','dressmann','apple store','power ','rusta','dollarstore','byggmax','kicks','cubus','bestseller','lekia','arken zoo','computersalg','blocket','tradera','sellpy'],
+  noje:['spotify','netflix','hbo','disney','viaplay','youtube','apple.com','google','steam','playstation','xbox','nintendo','filmstaden','sf bio','ticketmaster','tidal','audible','storytel','bokus','adlibris','bookbeat','svenska bio','podme','sf anytime','akademibokhandeln'],
+  halsa:['apotek','apotea','kronans','vårdcentral','tandläk','sats','friskis','nordic wellness','actic','1177','folktandvården','gym','fysio'],
   resor:['sas ','norwegian','ryanair','booking.com','airbnb','hotel','hotels.com','scandic','expedia','finnair','klm','lufthansa'],
   spar:['avanz','isk '],
   inkomst:['lön','salary','löneutbet'],
-  overf:['överföring','eget konto','top-up','topup','revolut','insättning','exchanged to','till sparkonto'],
+  overf:['överföring','eget konto','top-up','topup','revolut','insättning','exchanged to','till sparkonto','apple pay-påfyllning','påfyllning'],
 };
 
+const RULES_VERSION=3;
 function defaultState(){
   const rules=[];
   for(const [cat,pats] of Object.entries(DEFAULT_RULES)) for(const p of pats) rules.push({pattern:p,categoryId:cat,learned:false});
-  return {rulesVersion:2, aliases:{}, categories:DEFAULT_CATS.map(c=>({...c})), rules, transactions:[], ui:{view:'overview',period:'all',learn:true,group:true}};
+  return {rulesVersion:RULES_VERSION, aliases:{}, categories:DEFAULT_CATS.map(c=>({...c})), rules, transactions:[], ui:{view:'overview',period:'all',learn:true,group:true}};
 }
 let S = defaultState();
 // Läser gammal data sparad i webbläsaren (före databasen) – används bara för flytten till Supabase
@@ -204,11 +205,11 @@ function normalize(){
     S.rules.splice(j>=0?j:S.rules.length,0,{pattern:'avanza',categoryId:'spar',learned:false},{pattern:'isk ',categoryId:'spar',learned:false});
     autoCategorize(); save();
   }
-  // Migrering: nya standardregler (v2)
-  if((S.rulesVersion||1)<2){
+  // Migrering: lägg till nya standardregler när RULES_VERSION höjs (befintliga regler lämnas orörda)
+  if((S.rulesVersion||1)<RULES_VERSION){
     const have=new Set(S.rules.map(r=>r.pattern));
     for(const r of defaultState().rules) if(!have.has(r.pattern)) S.rules.push(r);
-    S.rulesVersion=2; autoCategorize(); save();
+    S.rulesVersion=RULES_VERSION; autoCategorize(); save();
   }
 }
 // Spara: vyval (flik/period) per enhet i webbläsaren, allt annat synkas till Supabase
@@ -347,7 +348,9 @@ function norm(desc){
   return String(desc||'').toLowerCase()
     .replace(/^(kortköp|köp|reservation|betalning|bg|pg)\s+/,'')
     .replace(/[*#]/g,' ')
-    .split(/\s+/).filter(w=>w && (!/\d/.test(w) || /^\+\d{6,}$/.test(w))).join(' ') // tar bort ord med siffror (kortnr, referenskoder), behåller telefonnr
+    // tar bort referenskoder/kortnr (ord som mest är siffror eller långa koder med siffror), behåller telefonnr och namn som "klipp1"
+    .split(/\s+/).filter(w=>{ if(!w) return false; if(/^\+\d{6,}$/.test(w)) return true; const d=(w.match(/\d/g)||[]).length;
+      return d===0 || d/w.length<0.25 || (d/w.length<0.5 && w.length<8); }).join(' ')
     .trim();
 }
 // Nyckel för gruppering och inlärda regler: mottagaren, annars transaktionstypen
@@ -505,8 +508,75 @@ function parseSwedbankLines(rows){
   if(!out.length) throw new Error('Hittade inga transaktionsrader i Swedbank-format.');
   return {source:'Swedbank',txs:out,skipped};
 }
-async function parseSwedbankPdf(buf){
-  const pages=await pdfRows(buf), rows=[];
+// Väljer läsare utifrån innehållet i PDF:en
+async function parsePdf(buf){
+  const pages=await pdfRows(buf);
+  const text=pages.flat().map(its=>its.map(i=>i.s).join(' ')).join('\n');
+  if(/Revolut/i.test(text) && /Pengar\s+ut/i.test(text)) return parseRevolutPdf(pages);
+  return parseSwedbankPdf(pages);
+}
+
+/* --- Revolut kontoutdrag (PDF, svenska) --- */
+const SV_MON={jan:1,feb:2,mar:3,mars:3,apr:4,maj:5,jun:6,juni:6,jul:7,juli:7,aug:8,sep:9,sept:9,okt:10,nov:11,dec:12};
+function parseSvDate(s){
+  const m=String(s).match(/^(\d{1,2})\s+([a-zåäö]+)\.?\s+(\d{4})\b/i); if(!m) return null;
+  const mo=SV_MON[m[2].toLowerCase()]; if(!mo) return null;
+  return `${m[3]}-${String(mo).padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+}
+const REV_AMT=/^(-?\d{1,3}(?:[ \u00a0]\d{3})*,\d{2})\s*([A-Z]{3})$/;
+function parseRevolutPdf(pages){
+  const out=[],seen={}; let skipped=0, mismatches=0, prevSaldo=null, cur=null;
+  for(const page of pages){
+    let col=null;
+    for(let its of page){
+      // slå ihop "293,50" + "SEK" om PDF:en delat upp dem
+      its=its.reduce((a,i)=>{ const p=a[a.length-1]; if(p && /^[A-Z]{3}$/.test(i.s.trim()) && /\d,\d{2}$/.test(p.s.trim())) p.s=p.s.trim()+' '+i.s.trim(); else a.push({...i}); return a; },[]);
+      const line=its.map(i=>i.s).join(' ').trim();
+      // Rubrikrad: Datum | Beskrivning | Pengar ut | Pengar in | Saldo
+      if(/^Datum\b/i.test(line) && /Beskrivning/i.test(line) && /Pengar/i.test(line)){
+        const find=re=>{ for(let k=0;k<its.length;k++){ const s=its[k].s.trim(); if(re.test(s)) return its[k].x;
+          if(/^pengar$/i.test(s) && its[k+1] && re.test('pengar '+its[k+1].s.trim())) return its[k].x; } return null; };
+        col={desc:find(/^beskrivning$/i), out:find(/^pengar\s+ut$/i), in:find(/^pengar\s+in$/i)}; continue;
+      }
+      if(!col){ // saldosammanfattningen före första rubriken: ta öppningssaldot
+        if(prevSaldo===null && /^Konto\b/.test(line)){ const a=its.find(i=>REV_AMT.test(i.s.trim())); if(a) prevSaldo=parseAmount(a.s.trim().match(REV_AMT)[1]); }
+        continue;
+      }
+      const date=parseSvDate(line);
+      if(date){
+        const amts=its.filter(i=>REV_AMT.test(i.s.trim()));
+        const description=its.filter(i=>col.desc!==null ? i.x>=col.desc-2 && !amts.includes(i) : false).map(i=>i.s).join(' ').trim();
+        if(!amts.length||!description){ skipped++; cur=null; continue; }
+        const amtIt=amts[0], saldoIt=amts.length>1?amts[amts.length-1]:null;
+        const [,a,currency]=amtIt.s.trim().match(REV_AMT); const v=parseAmount(a);
+        let sign=(col.in!==null && amtIt.x>=col.in-10)?1:-1;
+        const saldo=saldoIt?parseAmount(saldoIt.s.trim().match(REV_AMT)[1]):null;
+        // Kontrollera mot saldot – rättar riktningen om kolumnen tolkats fel
+        if(prevSaldo!==null && saldo!==null && Math.abs(prevSaldo+sign*v-saldo)>0.005){
+          if(Math.abs(prevSaldo-sign*v-saldo)<=0.005) sign=-sign; else mismatches++;
+        }
+        if(saldo!==null) prevSaldo=saldo;
+        cur={date,description,kind:'',amount:Math.round(sign*v*100)/100,currency,source:'Revolut',categoryId:null,manual:false,
+          hint:/påfyllning|top-?up/i.test(description)?'overf':null};
+        out.push(cur); continue;
+      }
+      if(cur){ // detaljrader under transaktionen
+        const k=line.match(/^Kort:\s*\S*?(\d{4})\s*$/); if(k){ cur.kind='Kort *'+k[1]; continue; }
+        if(/^Från:/.test(line) && cur.amount>0 && !cur.hint) cur.refund=true;
+      }
+    }
+  }
+  if(!out.length) throw new Error('Hittade inga transaktioner i Revolut-utdraget.');
+  for(const t of out){
+    if(t.hint) t.kind='Påfyllning';
+    if(t.refund){ t.kind=(t.kind?t.kind+' · ':'')+'Återbetalning'; delete t.refund; }
+    const base=['Revolut',t.date,t.amount,t.description].join('|'); seen[base]=(seen[base]||0)+1; t.id=base+'#'+seen[base];
+  }
+  return {source:'Revolut',txs:out,skipped,warn:mismatches?`${mismatches} rader stämde inte med saldot – kontrollera dem`:''};
+}
+
+function parseSwedbankPdf(pages){
+  const rows=[];
   for(const page of pages){
     let refX=null,textX=null;
     for(const its of page){
@@ -536,7 +606,7 @@ async function importFiles(files){
     try{
       const buf=await f.arrayBuffer();
       let res;
-      if(f.name.toLowerCase().endsWith('.pdf')) res=await parseSwedbankPdf(buf);
+      if(f.name.toLowerCase().endsWith('.pdf')) res=await parsePdf(buf);
       else{
         const text=decode(buf);
         if(f.name.toLowerCase().endsWith('.json')){ importBackup(text); msgs.push(`${f.name}: säkerhetskopia återställd`); continue; }
@@ -545,7 +615,7 @@ async function importFiles(files){
       const {source,txs,skipped}=res;
       let added=0;
       for(const t of txs){ if(!existing.has(t.id)){ existing.add(t.id); S.transactions.push(t); added++; } }
-      msgs.push(`${f.name} (${source}): ${added} nya, ${txs.length-added} dubbletter${skipped?`, ${skipped} rader hoppades över`:''}`);
+      msgs.push(`${f.name} (${source}): ${added} nya, ${txs.length-added} dubbletter${skipped?`, ${skipped} rader hoppades över`:''}${res.warn?` ⚠ ${res.warn}`:''}`);
     }catch(e){ msgs.push(`${f.name}: ${e.message}`); }
   }
   autoCategorize(); save();
@@ -862,13 +932,13 @@ function renderSettings(){
 function renderImport(empty){
   $('#main').innerHTML=`<div class="card" style="max-width:760px;margin:0 auto">
     ${empty?'<h2>Välkommen! Börja med att importera ett kontoutdrag.</h2>':'<h2>Importera kontoutdrag</h2>'}
-    <div id="dropzone"><div style="font-size:16px;font-weight:600">Dra och släpp CSV-filer här</div><div class="muted">eller klicka för att välja. Flera filer går bra – dubbletter hoppas över.</div></div>
+    <div id="dropzone"><div style="font-size:16px;font-weight:600">Dra och släpp PDF- eller CSV-filer här</div><div class="muted">eller klicka för att välja. Flera filer går bra – dubbletter hoppas över.</div></div>
     <h3 style="font-size:14px;margin-top:20px">Så exporterar du</h3>
     <p><b>Swedbank:</b> Internetbanken → konto → <i>Transaktionsrapport</i> → välj period → spara som <b>PDF</b> och dra in filen här. CSV-export fungerar också. (PDF-läsaren laddas från internet första gången.)</p>
     <details><summary class="muted" style="cursor:pointer">…eller klistra in text från Swedbank-rapporten</summary>
       <textarea id="paste" rows="8" style="width:100%;margin-top:8px;font:12px ui-monospace,monospace;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px" placeholder="260115 260115 260115 ICA SUPERMARKET Kortköp/uttag -123,45 1 000,00"></textarea>
       <button class="btn primary" id="pasteBtn" style="margin-top:6px">Importera inklistrad text</button></details>
-    <p><b>Revolut:</b> Appen → konto → <i>…</i> → <i>Kontoutdrag</i> → välj <b>Excel/CSV</b> och period. Bara genomförda transaktioner tas med; avgifter dras från beloppet och påfyllningar/valutaväxlingar blir “Överföringar”.</p>
+    <p><b>Revolut:</b> Appen → konto → <i>…</i> → <i>Kontoutdrag</i> → välj <b>PDF</b> (eller Excel/CSV) och period. Kortets sista siffror sparas, så du ser vem som betalade på ett gemensamt konto. Bara genomförda transaktioner tas med; avgifter dras från beloppet och påfyllningar/valutaväxlingar blir “Överföringar”.</p>
     <p class="muted">Filerna läses i din webbläsare. Bara transaktionerna (datum, text, belopp) sparas i din databas – inte själva filen eller kontonummer.</p></div>`;
   const dz=$('#dropzone'); dz.onclick=()=>$('#fileInput').click();
   $('#pasteBtn').onclick=()=>importPasted($('#paste').value);
