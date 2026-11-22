@@ -5,6 +5,12 @@
 *.xls
 *.json
 !package.json
+!package-lock.json
+!tsconfig.json
+
+# Bygg och beroenden
+node_modules/
+dist/
 
 # Lokala verktygsfiler
 .claude/
