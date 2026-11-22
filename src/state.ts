@@ -3,7 +3,7 @@ import type { Category, CatView, State, Transaction, UiState } from './types';
 
 export const LEGACY_STORE_KEY = 'mina-utgifter-v1';
 export const UI_KEY = 'money-dash-ui';
-export const RULES_VERSION = 5;
+export const RULES_VERSION = 6;
 
 /** Standard-underkategorier per huvudkategori: [id, namn, färg]. Regler finns i DEFAULT_RULES[id]. */
 const DEFAULT_SUBS: Record<string, [string, string, string][]> = {
@@ -122,6 +122,11 @@ export function normalize(): boolean {
     // "Service & reparation" är nu tre: Service, Besiktning, Reparation
     const serv = catById('bil_serv');
     if (serv?.name === 'Service & reparation') serv.name = 'Service';
+    changed = true;
+  }
+  // Migrering v6: Bolånebanken (bolån) flyttas från Räkningar till Boende › Amortering + ränta
+  if ((S.rulesVersion || 1) < 6 && catById('boende_lan')) {
+    for (const r of S.rules) if (!r.learned && r.pattern === 'bolanebank' && r.categoryId === 'rakn') r.categoryId = 'boende_lan';
     changed = true;
   }
   // Migrering: lägg till nya standardregler när RULES_VERSION höjs (befintliga regler lämnas orörda)
