@@ -4,9 +4,18 @@ import { importBackup } from '../import';
 import { decode } from '../import/util';
 import { rerender } from '../nav';
 import { autoCategorize } from '../rules';
-import { catById, S, save } from '../state';
+import { catById, isSub, orderedCats, parentOf, S, save, subsOf } from '../state';
 import { logout, session } from '../sync';
 import type { Category } from '../types';
+import { catOptions } from './common';
+
+/** Ljusare/mörkare variant av föräldrafärgen för nya underkategorier. */
+function shade(hex: string, i: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const f = [0.3, -0.3, 0.55, -0.5, 0.15][(i - 1) % 5];
+  const ch = (v: number) => Math.round(f > 0 ? v + (255 - v) * f : v * (1 + f));
+  return '#' + [n >> 16, (n >> 8) & 255, n & 255].map((v) => ch(v).toString(16).padStart(2, '0')).join('');
+}
 
 const TYPES: [Category['type'], string][] = [
   ['expense', 'Utgift'], ['income', 'Inkomst'], ['saving', 'Sparande'], ['transfer', 'Överföring (räknas ej)'],
@@ -17,16 +26,20 @@ const PALETTE = ['#3949ab', '#d81b60', '#00acc1', '#8e24aa', '#f4511e', '#43a047
 export function renderSettings(main: HTMLElement): void {
   const again = () => renderSettings(main);
   const recat = () => { autoCategorize(S); save(); };
-  const catOpts = (sel?: string) => S.categories.map((c) => `<option value="${c.id}" ${sel === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+  const catOpts = catOptions;
   const counts: Record<string, number> = {};
   for (const t of S.transactions) counts[t.categoryId ?? ''] = (counts[t.categoryId ?? ''] || 0) + 1;
 
   main.innerHTML = `<div class="grid two">
   <div class="card"><h2>Kategorier</h2>
-    ${S.categories.map((c) => `<div class="catrow" data-id="${c.id}">
+    ${orderedCats().map((c) => {
+      const sub = isSub(c);
+      return `<div class="catrow${sub ? ' sub' : ''}" data-id="${c.id}">
       <input type="color" value="${c.color}" data-f="color"><input type="text" value="${esc(c.name)}" data-f="name">
-      <select data-f="type">${TYPES.map(([v, l]) => `<option value="${v}" ${c.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
-      <span class="muted num" style="width:46px">${counts[c.id] || 0} st</span><button class="btn danger" data-del="${c.id}" title="Ta bort">✕</button></div>`).join('')}
+      ${sub ? '' : `<select data-f="type">${TYPES.map(([v, l]) => `<option value="${v}" ${c.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <button class="btn" data-addsub="${c.id}" title="Lägg till underkategori">+ Under</button>`}
+      <span class="muted num" style="width:46px">${counts[c.id] || 0} st</span><button class="btn danger" data-del="${c.id}" title="Ta bort">✕</button></div>`;
+    }).join('')}
     <div class="toolbar" style="margin-top:12px"><input type="text" id="newCat" placeholder="Ny kategori…"><button class="btn primary" id="addCat">Lägg till</button></div>
   </div>
   <div class="card"><h2>Regler <span class="muted" style="font-weight:400">(${S.rules.length})</span></h2>
@@ -48,18 +61,45 @@ export function renderSettings(main: HTMLElement): void {
     for (const inp of $$<HTMLInputElement | HTMLSelectElement>('[data-f]', row)) {
       inp.onchange = () => {
         const f = inp.dataset.f as 'color' | 'name' | 'type';
-        if (f === 'type') c.type = inp.value as Category['type']; else c[f] = inp.value;
+        if (f === 'type') {
+          // underkategorierna följer huvudkategorins typ
+          c.type = inp.value as Category['type'];
+          for (const s of subsOf(c.id)) s.type = c.type;
+        } else c[f] = inp.value;
         save(); again();
       };
     }
   }
+  for (const b of $$('[data-addsub]', main)) {
+    b.onclick = () => {
+      const p = catById(b.dataset.addsub);
+      const name = p && prompt(`Namn på underkategori till "${p.name}":`)?.trim();
+      if (!p || !name) return;
+      const subs = subsOf(p.id);
+      const at = S.categories.indexOf(subs[subs.length - 1] || p) + 1;
+      S.categories.splice(at, 0, { id: 'c' + Date.now().toString(36), name, color: shade(p.color, subs.length + 1), type: p.type, parent: p.id });
+      save(); again();
+    };
+  }
   for (const b of $$('[data-del]', main)) {
     b.onclick = () => {
-      const id = b.dataset.del!;
-      if (!confirm(`Ta bort kategorin "${catById(id)?.name}"? Transaktionerna blir okategoriserade och dess regler tas bort.`)) return;
-      S.categories = S.categories.filter((c) => c.id !== id);
-      S.rules = S.rules.filter((r) => r.categoryId !== id);
-      for (const t of S.transactions) if (t.categoryId === id) { t.categoryId = null; t.manual = false; }
+      const c = catById(b.dataset.del);
+      if (!c) return;
+      const parent = parentOf(c);
+      if (parent) {
+        // Underkategori: transaktioner och regler flyttas upp till huvudkategorin
+        if (!confirm(`Ta bort underkategorin "${c.name}"? Transaktionerna och reglerna flyttas till "${parent.name}".`)) return;
+        S.categories = S.categories.filter((x) => x.id !== c.id);
+        for (const r of S.rules) if (r.categoryId === c.id) r.categoryId = parent.id;
+        for (const t of S.transactions) if (t.categoryId === c.id) t.categoryId = parent.id;
+      } else {
+        const subs = subsOf(c.id);
+        const ids = new Set([c.id, ...subs.map((s) => s.id)]);
+        if (!confirm(`Ta bort kategorin "${c.name}"${subs.length ? ` och dess ${subs.length} underkategorier` : ''}? Transaktionerna blir okategoriserade och reglerna tas bort.`)) return;
+        S.categories = S.categories.filter((x) => !ids.has(x.id));
+        S.rules = S.rules.filter((r) => !ids.has(r.categoryId));
+        for (const t of S.transactions) if (t.categoryId && ids.has(t.categoryId)) { t.categoryId = null; t.manual = false; }
+      }
       recat(); again();
     };
   }

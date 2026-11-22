@@ -31,6 +31,12 @@ h2{font-size:15px;margin:0 0 12px}
 .neg{color:var(--neg)} .pos{color:var(--pos)}
 .barrow{display:grid;grid-template-columns:170px 1fr 110px;gap:10px;align-items:center;padding:5px 0;cursor:pointer}
 .barrow:hover .bar{filter:brightness(1.1)}
+.barrow.sub{padding:2px 0;font-size:13px}
+.barrow.sub > div:first-child{padding-left:16px}
+.barrow.sub .bartrack{height:8px}
+.col.subcol{border-style:dashed}
+.catrow.sub{padding-left:22px}
+.catrow.sub::before{content:"↳";color:var(--muted)}
 .bartrack{background:var(--panel2);border-radius:4px;height:14px;overflow:hidden}
 .bar{height:100%;border-radius:4px}
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px;flex:none}

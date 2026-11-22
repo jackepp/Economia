@@ -1,11 +1,20 @@
-import { autoCategorize, defaultRules, txKey } from './rules';
+import { autoCategorize, DEFAULT_RULES, defaultRules, txKey } from './rules';
 import type { Category, CatView, State, Transaction, UiState } from './types';
 
 export const LEGACY_STORE_KEY = 'mina-utgifter-v1';
 export const UI_KEY = 'money-dash-ui';
-export const RULES_VERSION = 3;
+export const RULES_VERSION = 4;
 
-const DEFAULT_CATS: Category[] = (
+/** Underkategorier till Bil (id, namn, färg). */
+const BIL_SUBS: [string, string, string][] = [
+  ['bil_drivm', 'Drivmedel', '#4a86d8'],
+  ['bil_park', 'Parkering', '#7aa7e3'],
+  ['bil_fors', 'Försäkring & skatt', '#123f80'],
+  ['bil_serv', 'Service & reparation', '#9ec0ee'],
+];
+const bilSubs = (): Category[] => BIL_SUBS.map(([id, name, color]) => ({ id, name, color, type: 'expense', parent: 'transp' }));
+
+const TOP_CATS: Category[] = (
   [
     ['mat', 'Mat & dagligvaror', '#2e7d32', 'expense'],
     ['rest', 'Restaurang & café', '#ef6c00', 'expense'],
@@ -22,6 +31,7 @@ const DEFAULT_CATS: Category[] = (
     ['overf', 'Överföringar', '#a7b4c2', 'transfer'],
   ] as const
 ).map(([id, name, color, type]) => ({ id, name, color, type }));
+const DEFAULT_CATS: Category[] = TOP_CATS.flatMap((c) => (c.id === 'transp' ? [c, ...bilSubs()] : [c]));
 
 const defaultUi = (): UiState => ({ view: 'overview', period: 'all', learn: true, group: true });
 
@@ -86,6 +96,16 @@ export function normalize(): boolean {
       { pattern: 'isk ', categoryId: 'spar', learned: false });
     changed = true;
   }
+  // Migrering v4: underkategorier för Bil; flytta standardregler för bensin/parkering dit
+  if ((S.rulesVersion || 1) < 4 && catById('transp') && !S.categories.some((c) => c.parent === 'transp')) {
+    const subs = bilSubs().filter((s) => !catById(s.id));
+    S.categories.splice(S.categories.findIndex((c) => c.id === 'transp') + 1, 0, ...subs);
+    for (const s of subs) {
+      const pats = new Set(DEFAULT_RULES[s.id] || []);
+      for (const r of S.rules) if (!r.learned && r.categoryId === 'transp' && pats.has(r.pattern)) r.categoryId = s.id;
+    }
+    changed = true;
+  }
   // Migrering: lägg till nya standardregler när RULES_VERSION höjs (befintliga regler lämnas orörda)
   if ((S.rulesVersion || 1) < RULES_VERSION) {
     const have = new Set(S.rules.map((r) => r.pattern));
@@ -115,7 +135,28 @@ export function loadLegacyLocal(): void {
 export const UNCAT: CatView = { id: null, name: 'Okategoriserat', color: '#b0b7c3', type: null };
 export const catById = (id: string | null | undefined): Category | undefined => S.categories.find((c) => c.id === id);
 export const catOf = (t: Transaction): CatView => catById(t.categoryId) || UNCAT;
-export const typeOf = (t: Transaction) => catOf(t).type || (t.amount < 0 ? 'expense' : 'income');
+
+/* ---------- Underkategorier ---------- */
+/** Överordnad kategori, om den finns kvar. */
+export const parentOf = (c: Category | undefined): Category | undefined => (c?.parent ? catById(c.parent) : undefined);
+/** Huvudkategorins id – för en underkategori föräldern, annars samma id. */
+export const rootId = (id: string | null): string | null => parentOf(catById(id))?.id ?? id;
+export const subsOf = (id: string): Category[] => S.categories.filter((c) => c.parent === id);
+export const isSub = (c: Category): boolean => !!parentOf(c);
+/** Huvudkategorier i sin ordning, var och en följd av sina underkategorier. */
+export const orderedCats = (): Category[] =>
+  S.categories.filter((c) => !isSub(c)).flatMap((c) => [c, ...subsOf(c.id)]);
+/** "Bil › Drivmedel" */
+export const catLabel = (c: CatView): string => {
+  const p = parentOf(catById(c.id));
+  return p ? `${p.name} › ${c.name}` : c.name;
+};
+
+/** Typen bestäms av huvudkategorin. */
+export const typeOf = (t: Transaction) => {
+  const c = catById(t.categoryId);
+  return (parentOf(c) || c)?.type || (t.amount < 0 ? 'expense' : 'income');
+};
 
 /** Visningsnamn: eget namn på transaktionen > namn på mottagaren > originaltext. */
 export const displayName = (t: Transaction): string => t.alias || S.aliases[txKey(t)] || t.description;

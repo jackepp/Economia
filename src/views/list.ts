@@ -1,7 +1,8 @@
 import { $, $$ } from '../dom';
 import { esc, fmtKr2, kr } from '../format';
 import { go } from '../nav';
-import { catOf, displayName, MARKERS, markIcon, periodTx, S, save } from '../state';
+import { catOf, displayName, MARKERS, markIcon, periodTx, rootId, S, save } from '../state';
+import { catOptions } from './common';
 import { openEditor } from './editor';
 
 /** cat: '*' alla, '_' okategoriserat, annars kategori-id. mark: '*', '_any', '_note' eller markering. */
@@ -17,17 +18,17 @@ export function renderList(main: HTMLElement): void {
   const { cat, mark } = listFilter;
   const txs = periodTx().filter((t) =>
     (!q || [t.description, displayName(t), t.kind, t.note, t.amount].some((v) => String(v || '').toLowerCase().includes(q))) &&
-    (cat === '*' || (cat === '_' ? !t.categoryId : t.categoryId === cat)) &&
+    // en huvudkategori i filtret tar även med dess underkategorier
+    (cat === '*' || (cat === '_' ? !t.categoryId : t.categoryId === cat || rootId(t.categoryId) === cat)) &&
     (mark === '*' || (mark === '_any' ? !!t.mark : mark === '_note' ? !!t.note : t.mark === mark)));
   txs.sort((a, b) => b.date.localeCompare(a.date) || a.amount - b.amount);
   const total = txs.reduce((s, t) => s + t.amount, 0);
-  const opts = (sel: string | null) => `<option value="" ${!sel ? 'selected' : ''}>Okategoriserat</option>` +
-    S.categories.map((c) => `<option value="${c.id}" ${sel === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+  const opts = (sel: string | null) => `<option value="" ${!sel ? 'selected' : ''}>Okategoriserat</option>` + catOptions(sel);
   const sub = (s: string) => ` <span class="muted" style="font-size:12px">${s}</span>`;
 
   main.innerHTML = `<div class="card">
     <div class="toolbar"><input type="search" id="q" placeholder="Sök namn, anteckning eller belopp…" value="${esc(listFilter.q)}" style="min-width:240px">
-      <select id="fc"><option value="*">Alla kategorier</option><option value="_">Okategoriserat</option>${S.categories.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+      <select id="fc"><option value="*">Alla kategorier</option><option value="_">Okategoriserat</option>${catOptions()}</select>
       <select id="fm"><option value="*">Alla markeringar</option><option value="_any">Alla markerade</option><option value="_note">Med anteckning</option>${Object.entries(MARKERS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
       <span class="muted">${txs.length} transaktioner · summa ${kr(total)}</span></div>
     <div style="overflow-x:auto"><table class="txtable"><thead><tr><th>Datum</th><th>Beskrivning</th><th>Konto</th><th class="num">Belopp</th><th>Kategori</th><th></th></tr></thead><tbody>

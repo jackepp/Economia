@@ -4,7 +4,10 @@ export interface Category {
   id: string;
   name: string;
   color: string;
+  /** För underkategorier: ärvs från föräldern. */
   type: CatType;
+  /** Id för överordnad kategori – sätts bara på underkategorier (en nivå). */
+  parent?: string;
 }
 
 /** Kategori som den visas – inklusive "Okategoriserat" (id null). */

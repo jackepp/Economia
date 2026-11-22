@@ -4,6 +4,7 @@ import { rerender } from '../nav';
 import { txKey } from '../rules';
 import { assignCategory, displayName, MARKERS, S, save } from '../state';
 import type { Transaction } from '../types';
+import { catOptions } from './common';
 
 const FIELDS = ['mark', 'alias', 'note'] as const;
 
@@ -19,8 +20,7 @@ export function openEditor(ids: string[]): void {
   const cats = new Set(txs.map((t) => t.categoryId || ''));
   const curCat = cats.size === 1 ? [...cats][0] : '__mixed';
   const catOpts = (curCat === '__mixed' ? '<option value="__mixed" selected>(blandade – ändras inte)</option>' : '') +
-    `<option value="" ${curCat === '' ? 'selected' : ''}>Okategoriserat</option>` +
-    S.categories.map((c) => `<option value="${c.id}" ${curCat === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+    `<option value="" ${curCat === '' ? 'selected' : ''}>Okategoriserat</option>` + catOptions(curCat);
 
   d.innerHTML = `<form method="dialog">
     <h2>${esc(displayName(txs[0]))}${txs.length > 1 ? ` <span class="muted" style="font-weight:400">· ${txs.length} transaktioner</span>` : ''}</h2>

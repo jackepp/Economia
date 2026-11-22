@@ -2,7 +2,7 @@ import { $, $$, toast } from '../dom';
 import { esc, fmtKr2, kr } from '../format';
 import { rerender } from '../nav';
 import { txKey } from '../rules';
-import { assignCategory, catById, displayName, groupKey, markIcon, periodTx, S, save, UNCAT } from '../state';
+import { assignCategory, catById, catLabel, displayName, groupKey, markIcon, orderedCats, parentOf, periodTx, S, save, UNCAT } from '../state';
 import type { CatView } from '../types';
 import { openEditor } from './editor';
 
@@ -14,7 +14,7 @@ let dragKey: string | null = null;
 export function renderBoard(main: HTMLElement): void {
   const txs = periodTx();
   dragMap = new Map();
-  const cols: CatView[] = [UNCAT, ...S.categories];
+  const cols: CatView[] = [UNCAT, ...orderedCats()];
   const html = cols.map((c) => {
     const list = txs.filter((t) => (t.categoryId || null) === c.id);
     const groups = new Map<string, { key: string; desc: string; kinds: Set<string>; pats: Set<string>; marks: Set<string>; notes: string[]; ids: string[]; sum: number; dates: string[] }>();
@@ -41,8 +41,9 @@ export function renderBoard(main: HTMLElement): void {
         <div class="m"><span>${dl}</span><span class="${g.sum < 0 ? '' : 'pos'}">${fmtKr2.format(g.sum)}</span></div>
         ${g.notes.length ? `<div class="note">📝 ${esc(g.notes.join(' · '))}</div>` : ''}</div>`;
     }).join('');
-    return `<div class="col ${c.id === null ? 'uncat' : ''}" data-cat="${c.id ?? ''}">
-      <div class="colhead"><span class="dot" style="background:${c.color}"></span><b>${esc(c.name)}</b><span class="muted num">${list.length} st · ${kr(Math.abs(total) + 0)}</span></div>
+    const parent = parentOf(catById(c.id));
+    return `<div class="col ${c.id === null ? 'uncat' : ''}${parent ? ' subcol' : ''}" data-cat="${c.id ?? ''}">
+      <div class="colhead"><span class="dot" style="background:${c.color}"></span><b>${parent ? `<span class="muted">${esc(parent.name)} ›</span> ` : ''}${esc(c.name)}</b><span class="muted num">${list.length} st · ${kr(Math.abs(total) + 0)}</span></div>
       <div class="colbody">${cards || '<div class="muted" style="font-size:12px;text-align:center;padding:12px">Dra hit</div>'}${arr.length > 150 ? `<div class="muted">+${arr.length - 150} till…</div>` : ''}</div></div>`;
   }).join('');
   const touch = matchMedia('(hover: none)').matches;
@@ -80,5 +81,5 @@ function moveTo(key: string, catId: string | null): void {
   const extra = assignCategory(g.ids, g.patterns, catId);
   save();
   rerender();
-  toast(`${g.ids.length} st → ${(catById(catId) || UNCAT).name}${extra ? ` (+${extra} i andra perioder)` : ''}`);
+  toast(`${g.ids.length} st → ${catLabel(catById(catId) || UNCAT)}${extra ? ` (+${extra} i andra perioder)` : ''}`);
 }

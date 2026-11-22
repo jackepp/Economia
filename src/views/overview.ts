@@ -1,19 +1,37 @@
 import { esc, kr, monthLabel } from '../format';
 import { txKey } from '../rules';
-import { allMonths, catById, displayName, periodTx, S, sums, typeOf, UNCAT, type Sums } from '../state';
+import { allMonths, catById, catLabel, displayName, isSub, orderedCats, periodTx, rootId, S, subsOf, sums, typeOf, UNCAT, type Sums } from '../state';
 
 type MonthData = Sums & { m: string };
+
+/** Summerar per huvudkategori, med fördelningen på underkategorier. */
+function byRoot(byCat: Map<string | null, number>): Map<string | null, { v: number; subs: Map<string | null, number> }> {
+  const out = new Map<string | null, { v: number; subs: Map<string | null, number> }>();
+  for (const [id, v] of byCat) {
+    const r = rootId(id);
+    const e = out.get(r) || { v: 0, subs: new Map() };
+    e.v += v;
+    e.subs.set(id, (e.subs.get(id) || 0) + v);
+    out.set(r, e);
+  }
+  return out;
+}
 
 // Klick hanteras i main.ts via data-go / data-show-cat / data-period
 export function renderOverview(main: HTMLElement): void {
   const txs = periodTx(), { exp, inc, saved, byCat } = sums(txs);
   const savePct = inc > 0 ? Math.round((saved / inc) * 100) : null;
   const uncat = txs.filter((t) => !t.categoryId).length;
-  const cats = [...byCat.entries()].filter(([, v]) => Math.abs(v) >= 0.5).sort((a, b) => b[1] - a[1]);
-  const max = Math.max(1, ...cats.map((c) => c[1]));
+  const cats = [...byRoot(byCat).entries()].filter(([, e]) => Math.abs(e.v) >= 0.5).sort((a, b) => b[1].v - a[1].v);
+  const max = Math.max(1, ...cats.map((c) => c[1].v));
   const mData: MonthData[] = allMonths().slice(-18).map((m) => ({ m, ...sums(S.transactions.filter((t) => t.date.startsWith(m))) }));
   const mMax = Math.max(1, ...mData.map((d) => d.exp));
-  const order: (string | null)[] = [...S.categories.map((c) => c.id), null];
+  const order: (string | null)[] = [...orderedCats().filter((c) => !isSub(c)).map((c) => c.id), null];
+  const barRow = (id: string | null, v: number, sub: boolean, label: string, color: string) =>
+    `<div class="barrow${sub ? ' sub' : ''}" data-show-cat="${id ?? ''}">
+        <div style="display:flex;align-items:center;min-width:0"><span class="dot" style="background:${color}"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(label)}</span></div>
+        <div class="bartrack"><div class="bar" style="width:${(Math.max(0, v) / max) * 100}%;background:${color}"></div></div>
+        <div class="num">${kr(v)} <span class="muted">${exp > 0 ? Math.round((v / exp) * 100) : 0}%</span></div></div>`;
   const merch = new Map<string, { name: string; sum: number; n: number; cat: string | null }>();
   for (const t of txs) {
     if (typeOf(t) !== 'expense') continue;
@@ -38,17 +56,23 @@ export function renderOverview(main: HTMLElement): void {
   ${foreign ? `<p class="muted">Obs: ${foreign} transaktioner är i annan valuta än SEK och räknas just nu som SEK.</p>` : ''}
   <div class="grid two" style="margin-top:16px">
     <div class="card"><h2>Utgifter per kategori</h2>
-      ${cats.length ? cats.map(([id, v]) => {
+      ${cats.length ? cats.map(([id, e]) => {
         const c = catById(id) || UNCAT;
-        return `<div class="barrow" data-show-cat="${id ?? ''}">
-        <div style="display:flex;align-items:center;min-width:0"><span class="dot" style="background:${c.color}"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span></div>
-        <div class="bartrack"><div class="bar" style="width:${(Math.max(0, v) / max) * 100}%;background:${c.color}"></div></div>
-        <div class="num">${kr(v)} <span class="muted">${exp > 0 ? Math.round((v / exp) * 100) : 0}%</span></div></div>`;
+        let h = barRow(id, e.v, false, c.name, c.color);
+        // Underkategorier visas indragna när huvudkategorin har sådana
+        if (id && subsOf(id).length) {
+          for (const [sid, sv] of [...e.subs.entries()].filter(([, v]) => Math.abs(v) >= 0.5).sort((a, b) => b[1] - a[1])) {
+            const sc = catById(sid) || UNCAT;
+            h += barRow(sid, sv, true, sid === id ? 'Utan underkategori' : sc.name, sc.color);
+          }
+        }
+        return h;
       }).join('') : '<p class="muted">Inga utgifter i perioden.</p>'}
     </div>
     <div class="card"><h2>Utgifter per månad</h2>
       <div class="months">${mData.map((d) => {
-        const segs = order.map((id) => ({ id, v: Math.max(0, d.byCat.get(id) || 0) })).filter((s) => s.v > 0);
+        const roots = byRoot(d.byCat);
+        const segs = order.map((id) => ({ id, v: Math.max(0, roots.get(id)?.v || 0) })).filter((s) => s.v > 0);
         return `<div class="mcol ${S.ui.period === 'M:' + d.m ? 'sel' : ''}" data-period="M:${d.m}" title="${monthLabel(d.m)}\nUtgifter: ${kr(d.exp)}\nInkomster: ${kr(d.inc)}">
           <div class="ml num" style="font-size:10px">${Math.round(d.exp / 1000)}k</div>
           <div class="mstack" style="height:${(d.exp / mMax) * 160}px">${segs.map((s) => {
@@ -65,7 +89,7 @@ export function renderOverview(main: HTMLElement): void {
     <table><thead><tr><th>Mottagare</th><th>Kategori</th><th class="num">Antal</th><th class="num">Summa</th></tr></thead><tbody>
     ${top.map((e) => {
       const c = catById(e.cat) || UNCAT;
-      return `<tr><td>${esc(e.name)}</td><td><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</td><td class="num">${e.n}</td><td class="num">${kr(e.sum)}</td></tr>`;
+      return `<tr><td>${esc(e.name)}</td><td><span class="dot" style="background:${c.color}"></span>${esc(catLabel(c))}</td><td class="num">${e.n}</td><td class="num">${kr(e.sum)}</td></tr>`;
     }).join('')}
     </tbody></table></div>`;
 }
