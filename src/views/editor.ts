@@ -2,19 +2,17 @@ import { $, $$, $opt, toast } from '../dom';
 import { esc, fmtKr2 } from '../format';
 import { rerender } from '../nav';
 import { txKey } from '../rules';
-import { assignCategory, displayName, MARKERS, S, save } from '../state';
+import { assignCategory, displayName, S, save } from '../state';
 import type { Transaction } from '../types';
 import { catOptions } from './common';
 
-const markOpts = (sel: string) => `<option value="">Ingen markering</option>` +
-  Object.entries(MARKERS).map(([k, v]) => `<option value="${k}" ${sel === k ? 'selected' : ''}>${v}</option>`).join('');
 const catSelect = (sel: string, attrs: string, keepLabel?: string) =>
   `<select ${attrs}>${keepLabel ? `<option value="__keep" selected>${keepLabel}</option>` : ''}` +
   `<option value="" ${!keepLabel && !sel ? 'selected' : ''}>Okategoriserat</option>${catOptions(keepLabel ? undefined : sel)}</select>`;
 const field = (label: string, input: string) => `<label class="mini"><span>${label}</span>${input}</label>`;
 
 /**
- * Redigera transaktioner: varje transaktion har egen kategori, mottagare, anteckning och markering.
+ * Redigera transaktioner: varje transaktion har egen kategori, mottagare och anteckning.
  * Med flera transaktioner (ett grupperat kort) finns dessutom "Ändra alla" överst.
  */
 export function openEditor(ids: string[]): void {
@@ -38,7 +36,6 @@ export function openEditor(ids: string[]): void {
         ${field('Kategori', catSelect(t.categoryId || '', 'data-f="cat"'))}
         ${field('Mottagare', `<input type="text" data-f="alias" value="${esc(many ? t.alias || '' : t.alias || (oneKey && S.aliases[oneKey]) || '')}" placeholder="${esc(many ? displayName(t) : t.description)}">`)}
         ${field('Anteckning', `<input type="text" data-f="note" value="${esc(t.note || '')}" placeholder="Vad var det?">`)}
-        ${field('Markering', `<select data-f="mark">${markOpts(t.mark || '')}</select>`)}
       </div>
       ${many ? '' : recipientAll + learn}</div>`;
 
@@ -48,8 +45,6 @@ export function openEditor(ids: string[]): void {
       <div class="edfields">
         ${field('Kategori', catSelect('', 'id="edAllCat"', '– behåll –'))}
         ${oneKey ? field('Mottagare <span class="muted">(även framtida)</span>', `<input type="text" id="edAlias" value="${esc(S.aliases[oneKey] || '')}" placeholder="${esc(t0.description)}">`) : '<span></span>'}
-        <span></span>
-        ${field('Markering', `<select id="edAllMark"><option value="__keep">– behåll –</option>${markOpts('')}</select>`)}
       </div>${learn}</div>` : ''}
     <div class="edlist">${txs.slice(0, 100).map(row).join('')}</div>
     ${txs.length > 100 ? `<p class="muted">Visar 100 av ${txs.length}.</p>` : ''}
@@ -57,9 +52,8 @@ export function openEditor(ids: string[]): void {
       <button class="btn primary" value="save">Spara</button><button type="button" class="btn" id="edCancel">Avbryt</button></div></form>`;
 
   // "Ändra alla" fyller i raderna – de kan sedan justeras en och en
-  const allCat = $opt<HTMLSelectElement>('#edAllCat', d), allMark = $opt<HTMLSelectElement>('#edAllMark', d);
+  const allCat = $opt<HTMLSelectElement>('#edAllCat', d);
   if (allCat) allCat.onchange = () => { if (allCat.value !== '__keep') $$<HTMLSelectElement>('[data-f=cat]', d).forEach((s) => (s.value = allCat.value)); };
-  if (allMark) allMark.onchange = () => { if (allMark.value !== '__keep') $$<HTMLSelectElement>('[data-f=mark]', d).forEach((s) => (s.value = allMark.value)); };
   $('#edCancel', d).onclick = () => d.close('cancel');
 
   d.onclose = () => {
@@ -87,7 +81,8 @@ export function openEditor(ids: string[]): void {
         if (alias) S.aliases[oneKey] = alias; else delete S.aliases[oneKey];
         delete t.alias;
       } else if (alias) t.alias = alias; else delete t.alias;
-      for (const f of ['note', 'mark'] as const) { const v = val(f); if (v) t[f] = v; else delete t[f]; }
+      const note = val('note');
+      if (note) t.note = note; else delete t.note;
     }
     save();
     rerender();

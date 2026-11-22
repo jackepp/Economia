@@ -185,15 +185,6 @@ export const typeOf = (t: Transaction) => {
 export const displayName = (t: Transaction): string => t.alias || S.aliases[txKey(t)] || t.description;
 export const groupKey = (t: Transaction): string => (t.alias ? 'a:' + t.alias.toLowerCase() : txKey(t));
 
-export const MARKERS: Record<string, string> = {
-  star: '⭐ Viktig',
-  check: '❓ Kolla upp',
-  back: '💸 Ska få tillbaka',
-  repeat: '🔁 Återkommande',
-  done: '✅ Klar',
-};
-export const markIcon = (m?: string | null): string => (m && MARKERS[m] ? MARKERS[m].split(' ')[0] + ' ' : '');
-
 /* ---------- Period ---------- */
 export function inPeriod(t: Transaction, p = S.ui.period): boolean {
   if (p === 'all') return true;

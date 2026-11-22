@@ -1,7 +1,7 @@
 import { $, $$ } from '../dom';
 import { esc, fmtKr2, kr } from '../format';
 import { go } from '../nav';
-import { catOf, displayName, markIcon, periodTx, rootId, S, save } from '../state';
+import { catOf, displayName, periodTx, rootId, S, save } from '../state';
 import { catOptions } from './common';
 import { openEditor } from './editor';
 
@@ -36,7 +36,7 @@ export function renderList(main: HTMLElement): void {
     ${txs.slice(0, 600).map((t) => {
       const name = displayName(t);
       return `<tr class="txrow" data-open="${esc(t.id)}"><td class="num" style="text-align:left">${t.date}</td>
-      <td>${markIcon(t.mark)}<b style="font-weight:550">${esc(name)}</b>${name !== t.description ? sub(`(${esc(t.description)})`) : ''}${t.kind && t.kind !== t.description ? sub(`· ${esc(t.kind)}`) : ''}
+      <td><b style="font-weight:550">${esc(name)}</b>${name !== t.description ? sub(`(${esc(t.description)})`) : ''}${t.kind && t.kind !== t.description ? sub(`· ${esc(t.kind)}`) : ''}
         ${t.note ? `<div class="lnote">📝 ${esc(t.note)}</div>` : ''}</td><td class="muted">${esc(t.source)}</td>
       <td class="num ${t.amount < 0 ? '' : 'pos'}">${fmtKr2.format(t.amount)}${t.currency !== 'SEK' ? ' ' + esc(t.currency) : ''}</td>
       <td><span class="dot" style="background:${catOf(t).color}"></span><select data-id="${esc(t.id)}">${opts(t.categoryId)}</select></td>

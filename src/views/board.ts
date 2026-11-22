@@ -2,7 +2,7 @@ import { $, $$, toast } from '../dom';
 import { esc, fmtKr2, kr } from '../format';
 import { rerender } from '../nav';
 import { txKey } from '../rules';
-import { assignCategory, catById, catLabel, displayName, groupKey, markIcon, orderedCats, parentOf, periodTx, S, save, UNCAT } from '../state';
+import { assignCategory, catById, catLabel, displayName, groupKey, orderedCats, parentOf, periodTx, S, save, UNCAT } from '../state';
 import type { CatView } from '../types';
 import { openEditor } from './editor';
 
@@ -17,13 +17,12 @@ export function renderBoard(main: HTMLElement): void {
   const cols: CatView[] = [UNCAT, ...orderedCats()];
   const html = cols.map((c) => {
     const list = txs.filter((t) => (t.categoryId || null) === c.id);
-    const groups = new Map<string, { key: string; desc: string; kinds: Set<string>; pats: Set<string>; marks: Set<string>; notes: string[]; ids: string[]; sum: number; dates: string[] }>();
+    const groups = new Map<string, { key: string; desc: string; kinds: Set<string>; pats: Set<string>; notes: string[]; ids: string[]; sum: number; dates: string[] }>();
     for (const t of list) {
       const k = S.ui.group ? groupKey(t) : t.id;
-      const g = groups.get(k) || { key: k, desc: displayName(t), kinds: new Set(), pats: new Set(), marks: new Set(), notes: [], ids: [], sum: 0, dates: [] };
+      const g = groups.get(k) || { key: k, desc: displayName(t), kinds: new Set(), pats: new Set(), notes: [], ids: [], sum: 0, dates: [] };
       if (t.kind) g.kinds.add(t.kind);
       g.pats.add(txKey(t));
-      if (t.mark) g.marks.add(t.mark);
       if (t.note) g.notes.push(t.note);
       g.ids.push(t.id); g.sum += t.amount; g.dates.push(t.date);
       groups.set(k, g);
@@ -37,7 +36,7 @@ export function renderBoard(main: HTMLElement): void {
       let dl = dates.length > 1 ? `${dates[0].slice(5)} – ${dates[dates.length - 1].slice(5)}` : dates[0];
       if (g.kinds.size && !g.kinds.has(g.desc)) dl += ' · ' + esc([...g.kinds].join(', '));
       return `<div class="tx" draggable="true" data-key="${esc(dk)}" style="border-left-color:${c.color}" title="${esc(g.desc)}">
-        <div class="d">${[...g.marks].map(markIcon).join('')}${esc(g.desc || '(ingen beskrivning)')}${g.ids.length > 1 ? `<span class="badge">×${g.ids.length}</span>` : ''}</div>
+        <div class="d">${esc(g.desc || '(ingen beskrivning)')}${g.ids.length > 1 ? `<span class="badge">×${g.ids.length}</span>` : ''}</div>
         <div class="m"><span>${dl}</span><span class="${g.sum < 0 ? '' : 'pos'}">${fmtKr2.format(g.sum)}</span></div>
         ${g.notes.length ? `<div class="note">📝 ${esc(g.notes.join(' · '))}</div>` : ''}</div>`;
     }).join('');
@@ -51,7 +50,7 @@ export function renderBoard(main: HTMLElement): void {
   main.innerHTML = `<div class="toolbar">
       <label><input type="checkbox" id="learn" ${S.ui.learn ? 'checked' : ''}> Kom ihåg: kategorisera samma mottagare automatiskt framöver</label>
       <label><input type="checkbox" id="grp" ${S.ui.group ? 'checked' : ''}> Gruppera per mottagare</label>
-      <span class="muted">${touch ? 'Tryck på ett kort för att välja kategori, namn och markering.' : 'Dra kort mellan kategorierna, eller klicka för att ändra.'} Visar perioden: ${esc(periodName)}.</span></div>
+      <span class="muted">${touch ? 'Tryck på ett kort för att välja kategori, namn och anteckning.' : 'Dra kort mellan kategorierna, eller klicka för att ändra.'} Visar perioden: ${esc(periodName)}.</span></div>
     <div class="board">${html}</div>`;
   $<HTMLInputElement>('#learn', main).onchange = (e) => { S.ui.learn = (e.target as HTMLInputElement).checked; save(); };
   $<HTMLInputElement>('#grp', main).onchange = (e) => { S.ui.group = (e.target as HTMLInputElement).checked; save(); rerender(); };
