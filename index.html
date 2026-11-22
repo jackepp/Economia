@@ -1,0 +1,895 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Utgifter">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Mina utgifter</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --panel2:#f0f2f5; --text:#1c2230; --muted:#667085; --border:#e2e5ea;
+  --accent:#2f6fde; --accent-text:#fff; --neg:#c0392b; --pos:#2e7d32; --drop:#e8f0fe; --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#12151b; --panel:#1b1f27; --panel2:#232833; --text:#e6e8ec; --muted:#9aa3b2; --border:#2d3340;
+    --accent:#5b8ff0; --neg:#ef6b5e; --pos:#5cc468; --drop:#22324f; --shadow:none; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+header h1{font-size:17px;margin:0 8px 0 0}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+nav button{background:none;border:0;padding:7px 12px;border-radius:8px;color:var(--muted);font:inherit;cursor:pointer}
+nav button.active{background:var(--panel2);color:var(--text);font-weight:600}
+.spacer{flex:1}
+select,input[type=text],input[type=search]{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:6px 8px}
+.btn{font:inherit;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:6px 12px;border-radius:8px;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+.btn.danger{color:var(--neg)}
+main{padding:16px;max-width:1500px;margin:0 auto}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+.grid{display:grid;gap:16px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.kpi .label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.kpi .value{font-size:24px;font-weight:650;margin-top:4px;font-variant-numeric:tabular-nums}
+.two{grid-template-columns:repeat(auto-fit,minmax(380px,1fr))}
+h2{font-size:15px;margin:0 0 12px}
+.muted{color:var(--muted)}
+.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.neg{color:var(--neg)} .pos{color:var(--pos)}
+.barrow{display:grid;grid-template-columns:170px 1fr 110px;gap:10px;align-items:center;padding:5px 0;cursor:pointer}
+.barrow:hover .bar{filter:brightness(1.1)}
+.bartrack{background:var(--panel2);border-radius:4px;height:14px;overflow:hidden}
+.bar{height:100%;border-radius:4px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px;flex:none}
+.months{display:flex;align-items:flex-end;gap:6px;height:220px;padding-top:10px;overflow-x:auto}
+.mcol{flex:1;min-width:34px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+.mstack{width:100%;max-width:46px;display:flex;flex-direction:column-reverse;border-radius:4px;overflow:hidden;background:var(--panel2)}
+.mstack div{width:100%}
+.mcol .ml{font-size:11px;color:var(--muted)}
+.mcol.sel .ml{color:var(--text);font-weight:700}
+table{width:100%;border-collapse:collapse}
+th,td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}
+th{font-size:12px;color:var(--muted);font-weight:600}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+/* board */
+.board{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;align-items:start}
+.col{background:var(--panel);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;max-height:560px;transition:background .1s}
+.col.over{background:var(--drop);outline:2px dashed var(--accent)}
+.col.uncat{grid-row:span 2;max-height:1132px;border-width:2px}
+.colhead{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px}
+.colhead b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.colbody{padding:8px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;min-height:60px}
+.tx{background:var(--panel2);border-radius:8px;padding:7px 9px;cursor:grab;border-left:4px solid transparent;user-select:none}
+.tx:active{cursor:grabbing}
+.tx.dragging{opacity:.4}
+.tx .d{font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tx .m{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.badge{display:inline-block;background:var(--accent);color:var(--accent-text);border-radius:10px;padding:0 7px;font-size:11px;margin-left:4px}
+#dropzone{border:2px dashed var(--border);border-radius:12px;padding:36px;text-align:center;cursor:pointer}
+#dropzone.over{background:var(--drop);border-color:var(--accent)}
+#globaldrop{position:fixed;inset:0;background:rgba(47,111,222,.15);border:4px dashed var(--accent);display:none;align-items:center;justify-content:center;font-size:22px;font-weight:600;z-index:50;pointer-events:none}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c2230;color:#fff;padding:10px 16px;border-radius:10px;display:none;z-index:60;max-width:90vw;white-space:pre-line}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+input[type=color]{width:34px;height:28px;border:0;background:none;padding:0;cursor:pointer}
+.catrow{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)}
+.catrow input[type=text]{flex:1;min-width:0}
+.tx .note,.lnote{font-size:12px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lnote{white-space:normal}
+dialog{border:1px solid var(--border);border-radius:14px;background:var(--panel);color:var(--text);padding:20px;width:min(760px,calc(100vw - 32px));max-height:85vh;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+dialog::backdrop{background:rgba(10,14,22,.45)}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:6px}
+.edlist{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow-y:auto;margin-top:8px}
+.edrow{background:var(--panel2);border-radius:10px;padding:8px 10px}
+.edhead{display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:6px}
+.edfields{display:grid;grid-template-columns:150px 1fr 1.4fr;gap:6px}
+.edfields input,.edfields select{width:100%;min-width:0}
+.iconbtn{background:none;border:0;cursor:pointer;color:var(--muted);font-size:15px;padding:2px 6px;border-radius:6px}
+.iconbtn:hover{background:var(--panel2);color:var(--text)}
+@media (max-width:640px){ .edfields{grid-template-columns:1fr} }
+body.loggedout nav, body.loggedout #importBtn, body.loggedout label:has(#period), body.loggedout #sync{display:none}
+input[type=email],input[type=password]{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:9px 10px}
+#sync{font-size:12px;white-space:nowrap}
+/* Mobil (iPhone) */
+header{padding-top:max(10px, env(safe-area-inset-top))}
+@media (max-width:700px){
+  header{padding-left:12px;padding-right:12px;gap:8px}
+  header h1{font-size:16px}
+  nav{order:10;width:100%;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  nav button{white-space:nowrap;padding:8px 10px}
+  #importBtn{padding:6px 10px}
+  main{padding:12px 12px calc(24px + env(safe-area-inset-bottom))}
+  .card{padding:12px}
+  .kpis{grid-template-columns:1fr 1fr;gap:10px}
+  .kpi .value{font-size:19px}
+  .grid{gap:12px}
+  .board{grid-template-columns:1fr}
+  .col,.col.uncat{max-height:none;grid-row:auto}
+  .colbody{max-height:60vh}
+  .txtable th:nth-child(3),.txtable td:nth-child(3){display:none}
+  .txtable td,.txtable th{padding:7px 5px}
+  .txtable select{max-width:130px}
+  .toolbar input[type=search]{min-width:0!important;flex:1 1 100%}
+  /* iOS zoomar in på fält med text under 16px */
+  input,select,textarea{font-size:16px!important}
+  dialog{padding:14px;width:calc(100vw - 16px);max-height:90vh}
+  .months{height:180px}
+}
+@media (max-width:640px){ .barrow{grid-template-columns:110px 1fr 90px} .two{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mina utgifter</h1>
+  <nav id="tabs">
+    <button data-view="overview" class="active">Översikt</button>
+    <button data-view="board">Sortera</button>
+    <button data-view="list">Transaktioner</button>
+    <button data-view="settings">Kategorier &amp; regler</button>
+    <button data-view="import">Importera</button>
+  </nav>
+  <div class="spacer"></div>
+  <span id="sync" class="muted" title="Status för synk med databasen"></span>
+  <label class="muted">Period <select id="period"></select></label>
+  <button class="btn primary" id="importBtn">Importera fil…</button>
+  <input type="file" id="fileInput" accept=".csv,.txt,.pdf,.json,text/csv,application/pdf" multiple hidden>
+</header>
+<main id="main"></main>
+<div id="globaldrop">Släpp kontoutdraget här</div>
+<div id="toast"></div>
+<dialog id="editor"></dialog>
+
+<script>
+"use strict";
+/* ============ Data & lagring ============ */
+const STORE_KEY = 'mina-utgifter-v1';
+const DEFAULT_CATS = [
+  ['mat','Mat & dagligvaror','#2e7d32','expense'],
+  ['rest','Restaurang & café','#ef6c00','expense'],
+  ['boende','Boende & el','#6d4c41','expense'],
+  ['rakn','Räkningar & abonnemang','#546e7a','expense'],
+  ['transp','Transport','#1e63c4','expense'],
+  ['shop','Shopping','#c2185b','expense'],
+  ['noje','Nöje & streaming','#7b3fb0','expense'],
+  ['halsa','Hälsa & träning','#00897b','expense'],
+  ['resor','Resor','#e0a800','expense'],
+  ['ovrigt','Övrigt','#8d8d8d','expense'],
+  ['spar','Sparande (Avanza)','#3f51b5','saving'],
+  ['inkomst','Inkomst','#7cb342','income'],
+  ['overf','Överföringar','#a7b4c2','transfer'],
+].map(([id,name,color,type])=>({id,name,color,type}));
+
+// Mönster matchas mot början av ett ord i beskrivningen. Avsluta med mellanslag för exakt ord.
+const DEFAULT_RULES = {
+  mat:['ica','coop','willys','hemköp','hemkop','lidl','city gross','tempo','netto','mathem','matsmart','axfood'],
+  rest:['max ','pinchos','streetfood','mcdonald','burger king','espresso house','wayne','pressbyr','foodora','wolt','uber eats','sushi','pizz','restaurang','cafe','café','starbucks','subway','bastard burgers','o learys','7-eleven'],
+  boende:['hyra','brf','hsb','vattenfall','ellevio','fortum','tibber','e.on','eon ','göteborg energi','hyresvärd','bostad'],
+  rakn:['telia','tele2','telenor','tre ','hallon','comviq','bahnhof','bredband','com hem','tele 2','csn','folksam','if skadef','länsförs','trygg-hansa','trygg hansa','skatteverket','ica försäkr','akassa','a-kassa','debiteringsavgift'],
+  transp:['sl ','storstockholms','västtrafik','skånetrafiken','sj ','uber','bolt','circle k','preem','okq8','st1','ingo','easypark','parkering','aimo park','voi','lime','tier','flygbussarna'],
+  shop:['amazon','zalando','h&m','hm ','clas ohlson','ikea','elgiganten','webhallen','kjell','stadium','åhléns','ahlens','cdon','temu','shein','jula','biltema','normal','lindex','kappahl','dressmann','apple store','power '],
+  noje:['spotify','netflix','hbo','disney','viaplay','youtube','apple.com','google','steam','playstation','xbox','nintendo','filmstaden','sf bio','ticketmaster','tidal','audible','storytel','bokus','adlibris','bookbeat','svenska bio'],
+  halsa:['apotek','apotea','kronans','vårdcentral','tandläk','sats','friskis','nordic wellness','actic','1177','folktandvården','gym'],
+  resor:['sas ','norwegian','ryanair','booking.com','airbnb','hotel','hotels.com','scandic','expedia','finnair','klm','lufthansa'],
+  spar:['avanz','isk '],
+  inkomst:['lön','salary','löneutbet'],
+  overf:['överföring','eget konto','top-up','topup','revolut','insättning','exchanged to','till sparkonto'],
+};
+
+function defaultState(){
+  const rules=[];
+  for(const [cat,pats] of Object.entries(DEFAULT_RULES)) for(const p of pats) rules.push({pattern:p,categoryId:cat,learned:false});
+  return {rulesVersion:2, aliases:{}, categories:DEFAULT_CATS.map(c=>({...c})), rules, transactions:[], ui:{view:'overview',period:'all',learn:true,group:true}};
+}
+let S = defaultState();
+// Läser gammal data sparad i webbläsaren (före databasen) – används bara för flytten till Supabase
+function loadLocal(){
+  try{ const raw=localStorage.getItem(STORE_KEY); S = raw?JSON.parse(raw):defaultState(); }catch(e){ S=defaultState(); }
+  normalize();
+}
+function normalize(){
+  let ui={}; try{ ui=JSON.parse(localStorage.getItem(UI_KEY)||'{}'); }catch(e){}
+  S.ui = Object.assign({view:'overview',period:'all',learn:true,group:true}, S.ui||{}, ui);
+  S.categories = S.categories||defaultState().categories; S.rules = S.rules||[]; S.transactions = S.transactions||[];
+  S.aliases = S.aliases||{};
+  // Migrering: lägg till sparkategori för data sparad med en äldre version
+  if(!S.categories.some(c=>c.type==='saving') && !S.categories.some(c=>c.id==='spar')){
+    const i=S.categories.findIndex(c=>c.type!=='expense');
+    S.categories.splice(i>=0?i:S.categories.length,0,{id:'spar',name:'Sparande (Avanza)',color:'#3f51b5',type:'saving'});
+    const j=S.rules.findIndex(r=>!r.learned);
+    S.rules.splice(j>=0?j:S.rules.length,0,{pattern:'avanza',categoryId:'spar',learned:false},{pattern:'isk ',categoryId:'spar',learned:false});
+    autoCategorize(); save();
+  }
+  // Migrering: nya standardregler (v2)
+  if((S.rulesVersion||1)<2){
+    const have=new Set(S.rules.map(r=>r.pattern));
+    for(const r of defaultState().rules) if(!have.has(r.pattern)) S.rules.push(r);
+    S.rulesVersion=2; autoCategorize(); save();
+  }
+}
+// Spara: vyval (flik/period) per enhet i webbläsaren, allt annat synkas till Supabase
+function save(){
+  try{ localStorage.setItem(UI_KEY, JSON.stringify(S.ui)); }catch(e){}
+  scheduleSync();
+}
+
+/* ============ Supabase: inloggning och synk ============ */
+const SUPABASE_URL='https://jwkpzypmjnzqhfjajqgg.supabase.co';
+const SUPABASE_KEY='sb_publishable_vDRd6TmLcJnD5YeYBMjsLg_8qmrvCLD'; // publik nyckel – skyddas av inloggning + RLS i databasen
+const UI_KEY='money-dash-ui';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let user=null, ready=false;
+let synced={tx:new Map(), settings:null}, syncTimer=null, syncing=false, syncAgain=false;
+
+function settingsOf(){ const {transactions,ui,...rest}=S; return rest; }
+function txRow(t){ return {user_id:user.id,id:t.id,date:t.date,description:t.description||'',kind:t.kind||null,amount:t.amount,
+  currency:t.currency||'SEK',source:t.source||null,category_id:t.categoryId||null,manual:!!t.manual,hint:t.hint||null,
+  alias:t.alias||null,note:t.note||null,mark:t.mark||null}; }
+function rowTx(r){ const t={id:r.id,date:r.date,description:r.description||'',kind:r.kind||'',amount:Number(r.amount),currency:r.currency||'SEK',
+  source:r.source,categoryId:r.category_id||null,manual:!!r.manual,hint:r.hint||null};
+  if(r.alias) t.alias=r.alias; if(r.note) t.note=r.note; if(r.mark) t.mark=r.mark; return t; }
+
+function setSync(state,msg){
+  const el=document.getElementById('sync'); if(!el) return;
+  el.textContent={loading:'⟳ Hämtar…',pending:'● Sparar…',ok:'✓ Sparat',error:'⚠ Ej sparat'}[state]||'';
+  el.style.color=state==='error'?'var(--neg)':''; el.title=msg||'Status för synk med databasen';
+}
+function scheduleSync(){ if(!user||!ready) return; setSync('pending'); clearTimeout(syncTimer); syncTimer=setTimeout(syncNow,700); }
+async function syncNow(){
+  if(!user) return;
+  if(syncing){ syncAgain=true; return; }
+  clearTimeout(syncTimer); syncTimer=null; syncing=true;
+  try{
+    const cur=new Map(S.transactions.map(t=>{ const r=txRow(t); return [t.id,{r,j:JSON.stringify(r)}]; }));
+    const up=[...cur.values()].filter(v=>synced.tx.get(v.r.id)!==v.j);
+    const del=[...synced.tx.keys()].filter(id=>!cur.has(id));
+    for(let i=0;i<up.length;i+=500){
+      const {error}=await sb.from('transactions').upsert(up.slice(i,i+500).map(v=>v.r),{onConflict:'user_id,id'}); if(error) throw error;
+    }
+    if(del.length && !cur.size){ const {error}=await sb.from('transactions').delete().eq('user_id',user.id); if(error) throw error; }
+    else for(let i=0;i<del.length;i+=10){
+      const res=await Promise.all(del.slice(i,i+10).map(id=>sb.from('transactions').delete().eq('id',id)));
+      const bad=res.find(r=>r.error); if(bad) throw bad.error;
+    }
+    const sj=JSON.stringify(settingsOf());
+    if(sj!==synced.settings){
+      const {error}=await sb.from('app_settings').upsert({user_id:user.id,data:JSON.parse(sj),updated_at:new Date().toISOString()}); if(error) throw error;
+      synced.settings=sj;
+    }
+    for(const v of up) synced.tx.set(v.r.id,v.j); for(const id of del) synced.tx.delete(id);
+    setSync('ok');
+  }catch(e){
+    console.error(e); setSync('error',e.message||String(e));
+    clearTimeout(syncTimer); syncTimer=setTimeout(syncNow,10000); // försök igen om 10 s
+  }finally{
+    syncing=false; if(syncAgain){ syncAgain=false; scheduleSync(); }
+  }
+}
+async function loadRemote(){
+  setSync('loading'); ready=false;
+  const {data:st,error:e1}=await sb.from('app_settings').select('data').maybeSingle(); if(e1) throw e1;
+  const rows=[];
+  for(let from=0;;from+=1000){
+    const {data,error}=await sb.from('transactions').select('*').order('id').range(from,from+999); if(error) throw error;
+    rows.push(...data); if(data.length<1000) break;
+  }
+  synced={tx:new Map(), settings:null};
+  if(!st && !rows.length){
+    // Första inloggningen: flytta data som finns sparad i den här webbläsaren
+    loadLocal(); ready=true;
+    const n=S.transactions.length; await syncNow();
+    if(n) toast(`${n} transaktioner flyttades från webbläsaren till databasen`);
+  }else{
+    S=Object.assign(defaultState(), st?st.data:{}); S.transactions=rows.map(rowTx);
+    for(const t of S.transactions) synced.tx.set(t.id, JSON.stringify(txRow(t)));
+    normalize(); ready=true;
+    scheduleSync(); // laddar upp eventuella ändringar från migreringar
+    setSync('ok');
+  }
+}
+async function enter(){
+  render(); // visar laddningsläge
+  try{ await loadRemote(); }catch(e){ console.error(e); setSync('error',e.message); toast('Kunde inte hämta data: '+(e.message||e)); }
+  render();
+}
+async function logout(){
+  await syncNow(); await sb.auth.signOut();
+  user=null; ready=false; S=defaultState(); synced={tx:new Map(),settings:null}; setSync(''); render();
+}
+function renderLogin(){
+  $('#main').innerHTML=`<div class="card" style="max-width:380px;margin:40px auto">
+    <h2>Logga in</h2>
+    <form id="loginForm" class="grid" style="gap:10px">
+      <input type="email" id="lgEmail" placeholder="E-post" autocomplete="username" required>
+      <input type="password" id="lgPass" placeholder="Lösenord" autocomplete="current-password" required>
+      <button class="btn primary" id="lgBtn">Logga in</button>
+      <div id="lgErr" class="neg" style="font-size:13px"></div>
+    </form>
+    <p class="muted" style="font-size:12px;margin-bottom:0">Kontot skapas i Supabase (Authentication → Users). Din data sparas i din egen databas och syns bara för dig.</p></div>`;
+  $('#loginForm').onsubmit=async e=>{
+    e.preventDefault(); $('#lgBtn').disabled=true; $('#lgErr').textContent='';
+    const {data,error}=await sb.auth.signInWithPassword({email:$('#lgEmail').value.trim(),password:$('#lgPass').value});
+    $('#lgBtn').disabled=false;
+    if(error){ $('#lgErr').textContent=error.message==='Invalid login credentials'?'Fel e-post eller lösenord.':error.message; return; }
+    user=data.user; enter();
+  };
+}
+// Spara direkt när appen läggs i bakgrunden (viktigt på iPhone)
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden' && syncTimer) syncNow(); });
+window.addEventListener('beforeunload',e=>{ if(syncTimer||syncing){ syncNow(); e.preventDefault(); e.returnValue=''; } });
+async function start(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(session){ user=session.user; enter(); } else render();
+  sb.auth.onAuthStateChange((ev,session)=>{ if(ev==='SIGNED_OUT' && user){ user=null; ready=false; S=defaultState(); render(); } });
+}
+
+/* ============ Hjälpfunktioner ============ */
+const $ = s=>document.querySelector(s);
+const esc = s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtKr = new Intl.NumberFormat('sv-SE',{style:'currency',currency:'SEK',maximumFractionDigits:0});
+const fmtKr2 = new Intl.NumberFormat('sv-SE',{minimumFractionDigits:2,maximumFractionDigits:2});
+const kr = n=>fmtKr.format(n);
+const MONTHS=['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
+const monthLabel = ym=>{const [y,m]=ym.split('-');return MONTHS[+m-1]+' '+y.slice(2);};
+const catById = id=>S.categories.find(c=>c.id===id);
+const UNCAT = {id:null,name:'Okategoriserat',color:'#b0b7c3',type:null};
+function catOf(t){ return catById(t.categoryId)||UNCAT; }
+function typeOf(t){ const c=catOf(t); return c.type || (t.amount<0?'expense':'income'); }
+let toastTimer;
+function toast(msg){ const el=$('#toast'); el.textContent=msg; el.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.style.display='none',4500); }
+
+// Normaliserad "handlare": gemener, utan siffror/kortnummer/datum och brus
+function norm(desc){
+  return String(desc||'').toLowerCase()
+    .replace(/^(kortköp|köp|reservation|betalning|bg|pg)\s+/,'')
+    .replace(/[*#]/g,' ')
+    .split(/\s+/).filter(w=>w && (!/\d/.test(w) || /^\+\d{6,}$/.test(w))).join(' ') // tar bort ord med siffror (kortnr, referenskoder), behåller telefonnr
+    .trim();
+}
+// Nyckel för gruppering och inlärda regler: mottagaren, annars transaktionstypen
+function txKey(t){ return norm(t.description) || String(t.kind||'').toLowerCase().trim() || String(t.description||'').toLowerCase(); }
+// Markeringar, egna namn och anteckningar
+const MARKERS={star:'⭐ Viktig',check:'❓ Kolla upp',back:'💸 Ska få tillbaka',repeat:'🔁 Återkommande',done:'✅ Klar'};
+const markIcon=m=>m&&MARKERS[m]?MARKERS[m].split(' ')[0]+' ':'';
+// Visningsnamn: eget namn på transaktionen > namn på mottagaren > originaltext
+function displayName(t){ return t.alias || S.aliases[txKey(t)] || t.description; }
+function groupKey(t){ return t.alias ? 'a:'+t.alias.toLowerCase() : txKey(t); }
+// Inlärda regler först (i ordning), därefter längsta mönstret först (mest specifikt vinner)
+function orderedRules(){ const l=S.rules.filter(r=>r.learned), o=S.rules.filter(r=>!r.learned).sort((a,b)=>b.pattern.length-a.pattern.length); return l.concat(o); }
+function matchRule(t, rules=orderedRules()){
+  // 1) matcha mot mottagaren, 2) matcha mot transaktionstypen (t.ex. "Lön", "Överföring")
+  const hays=[' '+norm(t.description)+' '];
+  if(t.kind) hays.push(' '+String(t.kind).toLowerCase()+' ');
+  for(const hay of hays) for(const r of rules){ if(r.pattern && hay.includes(' '+r.pattern.toLowerCase())) return r.categoryId; }
+  return t.hint||null;
+}
+function autoCategorize(){
+  const rules=orderedRules();
+  for(const t of S.transactions){ if(!t.manual){ const c=matchRule(t,rules); t.categoryId = (c && catById(c))?c:null; } }
+}
+
+/* ============ CSV-import ============ */
+function decode(buf){
+  let t=new TextDecoder('utf-8').decode(buf);
+  if(t.includes('�')) t=new TextDecoder('windows-1252').decode(buf);
+  return t.replace(/^﻿/,'');
+}
+function parseCSV(text,d){
+  const rows=[]; let row=[],f='',q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){f+='"';i++;} else q=false; } else f+=c; }
+    else if(c==='"') q=true;
+    else if(c===d){ row.push(f); f=''; }
+    else if(c==='\n'||c==='\r'){ if(c==='\r'&&text[i+1]==='\n')i++; row.push(f); rows.push(row); row=[]; f=''; }
+    else f+=c;
+  }
+  if(f||row.length){ row.push(f); rows.push(row); }
+  return rows.filter(r=>r.some(x=>x.trim()!==''));
+}
+const H = s=>String(s).toLowerCase().replace(/[\s_]+/g,' ').trim();
+function findCol(hdr,aliases){
+  for(const a of aliases){ const i=hdr.indexOf(a); if(i>=0) return i; }
+  for(const a of aliases){ const i=hdr.findIndex(h=>h.includes(a)); if(i>=0) return i; }
+  return -1;
+}
+const AL = {
+  date:['transaktionsdag','started date','startdatum','completed date','slutförandedatum','bokföringsdag','transaktionsdatum','datum','date'],
+  desc:['beskrivning','description','text','mottagare','meddelande'],
+  ref:['referens','reference'],
+  amount:['belopp','amount','summa'],
+  fee:['fee','avgift'],
+  currency:['valuta','currency'],
+  state:['state','tillstånd','status'],
+  type:['type','typ'],
+};
+function parseAmount(s){
+  s=String(s||'').replace(/[\s ]/g,'').replace(/−/g,'-').replace(/[^\d,.\-]/g,'');
+  if(!s) return NaN;
+  const lc=s.lastIndexOf(','), ld=s.lastIndexOf('.');
+  if(lc>=0&&ld>=0){ s = lc>ld ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,''); }
+  else if(lc>=0) s=s.replace(',','.');
+  return parseFloat(s);
+}
+function parseDate(s){
+  s=String(s||'').trim(); let m;
+  if((m=s.match(/(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/))) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  if((m=s.match(/(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/))) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  if((m=s.match(/^(\d{2})(\d{2})(\d{2})$/))) return `20${m[1]}-${m[2]}-${m[3]}`;
+  return null;
+}
+function detect(text,filename){
+  let best=null;
+  for(const d of [',',';','\t']){
+    const rows=parseCSV(text,d);
+    for(let i=0;i<Math.min(rows.length,15);i++){
+      const hdr=rows[i].map(H);
+      const c={}; for(const k in AL) c[k]=findCol(hdr,AL[k]);
+      if(c.date<0||c.amount<0||(c.desc<0&&c.ref<0)) continue;
+      if(!best||hdr.length>best.hdr.length) best={rows,i,hdr,c};
+      break;
+    }
+  }
+  if(!best) return null;
+  const h=best.hdr.join('|'), fn=(filename||'').toLowerCase();
+  let source='Annan';
+  if(/started date|startdatum|completed date|slutförandedatum/.test(h)||fn.includes('revolut')) source='Revolut';
+  else if(/bokföringsdag|clearingnummer|radnummer/.test(h)||fn.includes('swedbank')) source='Swedbank';
+  best.source=source; return best;
+}
+function parseFile(text,filename){
+  const det=detect(text,filename);
+  if(!det) throw new Error('Hittade ingen rubrikrad med datum, beskrivning och belopp.');
+  const {rows,i,c,source}=det, out=[], seen={}; let skipped=0;
+  for(const r of rows.slice(i+1)){
+    const date=parseDate(r[c.date]); let amount=parseAmount(r[c.amount]);
+    if(!date||isNaN(amount)){ skipped++; continue; }
+    if(c.state>=0 && /revert|declin|fail|pending|återf|nekad|misslyck|väntande|avböj|avvisad/i.test(r[c.state]||'')){ skipped++; continue; }
+    if(c.fee>=0){ const fee=parseAmount(r[c.fee]); if(!isNaN(fee)) amount-=Math.abs(fee); }
+    let desc=(c.desc>=0?r[c.desc]:'')||'', kind='';
+    // Swedbank-format där "Text" är transaktionstyp och "Referens" är mottagaren
+    if(c.desc>=0 && det.hdr[c.desc]==='text' && c.ref>=0){ kind=desc.trim(); desc=r[c.ref]||''; }
+    if(!desc.trim()&&c.ref>=0) desc=r[c.ref]||'';
+    desc=desc.trim().replace(/\s+/g,' ');
+    if(!desc) desc=kind;
+    const currency=(c.currency>=0&&r[c.currency]?r[c.currency].trim():'SEK')||'SEK';
+    const type=c.type>=0?(r[c.type]||'').toLowerCase():'';
+    const hint = (source==='Revolut' && /topup|top-up|påfyll|exchange|växl/.test(type)) ? 'overf' : null;
+    amount=Math.round(amount*100)/100;
+    const base=[source,date,amount,desc].concat(kind?[kind]:[]).join('|'); seen[base]=(seen[base]||0)+1;
+    out.push({id:base+'#'+seen[base],date,description:desc,kind,amount,currency,source,categoryId:null,manual:false,hint});
+  }
+  return {source,txs:out,skipped};
+}
+/* --- Swedbank transaktionsrapport (PDF eller inklistrad text) --- */
+const PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res;
+  s.onerror=()=>rej(new Error('Kunde inte ladda PDF-läsaren (kräver internetanslutning).')); document.head.appendChild(s); }); }
+async function ensurePdfjs(){ if(window.pdfjsLib) return; await loadScript(PDFJS+'pdf.min.js'); await loadScript(PDFJS+'pdf.worker.min.js'); }
+// Returnerar sidor -> rader -> textbitar {x,s} sorterade uppifrån och ned, vänster till höger
+async function pdfRows(buf){
+  await ensurePdfjs();
+  const doc=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise; const pages=[];
+  for(let p=1;p<=doc.numPages;p++){
+    const tc=await (await doc.getPage(p)).getTextContent(); const rows=[];
+    for(const it of tc.items){ const s=it.str.trim(); if(!s) continue; const y=it.transform[5];
+      let r=rows.find(r=>Math.abs(r.y-y)<=2); if(!r){ r={y,its:[]}; rows.push(r); } r.its.push({x:it.transform[4],s}); }
+    pages.push(rows.sort((a,b)=>b.y-a.y).map(r=>r.its.sort((a,b)=>a.x-b.x)));
+  }
+  return pages;
+}
+const AMT='-?\\d{1,3}(?:[ \\u00a0]\\d{3})*,\\d{2}';
+const SWB_LINE=new RegExp(`^(\\d{6})\\s+(\\d{6})\\s+(\\d{6})\\s+(.+?)\\s+(${AMT})\\s+(${AMT})\\s*$`);
+const SWB_KINDS=['Överföring via internet','Bg kontoinsättning','Pg kontoinsättning','Debiteringsavgift','Kortköp/uttag','Swish mottagen','Swish skickad','Swish retur','Kontoinsättning','Insättning','Överföring','Autogiro','Bankgiro','Betalning','E-faktura','Swish','Uttag','Ränta','Lön'];
+function splitKind(mid){
+  for(const k of SWB_KINDS){ if(mid===k) return {ref:'',kind:k}; if(mid.endsWith(' '+k)) return {ref:mid.slice(0,-k.length-1).trim(),kind:k}; }
+  return {ref:mid,kind:''};
+}
+// rows: array av {line, ref?, kind?}
+function parseSwedbankLines(rows){
+  const out=[],seen={}; let skipped=0;
+  for(const r of rows){
+    const m=r.line.replace(/\s+/g,' ').trim().match(SWB_LINE);
+    if(!m){ if(/^\d{6}\s/.test(r.line.trim())) skipped++; continue; }
+    let ref=r.ref, kind=r.kind;
+    if(ref===undefined||(!ref&&!kind)){ ({ref,kind}=splitKind(m[4])); }
+    const date=parseDate(m[2])||parseDate(m[1]), amount=parseAmount(m[5]);
+    const description=(ref||kind).replace(/\s+/g,' ').trim();
+    const base=['Swedbank',date,amount,description,kind].join('|'); seen[base]=(seen[base]||0)+1;
+    out.push({id:base+'#'+seen[base],date,description,kind,amount,currency:'SEK',source:'Swedbank',categoryId:null,manual:false,hint:null});
+  }
+  if(!out.length) throw new Error('Hittade inga transaktionsrader i Swedbank-format.');
+  return {source:'Swedbank',txs:out,skipped};
+}
+async function parseSwedbankPdf(buf){
+  const pages=await pdfRows(buf), rows=[];
+  for(const page of pages){
+    let refX=null,textX=null;
+    for(const its of page){
+      const low=its.map(i=>i.s.toLowerCase());
+      if(low.includes('referens')&&low.includes('text')){ refX=its[low.indexOf('referens')].x; textX=its[low.indexOf('text')].x; continue; }
+      const line=its.map(i=>i.s).join(' ');
+      if(refX!==null && /^\d{6}\b/.test(line)){
+        const ref=its.filter(i=>i.x>=refX-2&&i.x<textX-2).map(i=>i.s).join(' ');
+        const kind=its.filter(i=>i.x>=textX-2&&!new RegExp(`^(${AMT})(\\s+${AMT})?$`).test(i.s)).map(i=>i.s).join(' ');
+        rows.push({line,ref,kind});
+      } else rows.push({line});
+    }
+  }
+  return parseSwedbankLines(rows);
+}
+function importPasted(text){
+  const before=S.transactions.length, existing=new Set(S.transactions.map(t=>t.id));
+  try{ const {txs,skipped}=parseSwedbankLines(text.split(/\r?\n/).map(line=>({line})));
+    let added=0; for(const t of txs) if(!existing.has(t.id)){ S.transactions.push(t); existing.add(t.id); added++; }
+    autoCategorize(); save(); toast(`Inklistrad text (Swedbank): ${added} nya, ${txs.length-added} dubbletter${skipped?`, ${skipped} rader kunde inte läsas`:''}`); render();
+  }catch(e){ toast(e.message); }
+}
+
+async function importFiles(files){
+  const msgs=[]; const existing=new Set(S.transactions.map(t=>t.id));
+  for(const f of files){
+    try{
+      const buf=await f.arrayBuffer();
+      let res;
+      if(f.name.toLowerCase().endsWith('.pdf')) res=await parseSwedbankPdf(buf);
+      else{
+        const text=decode(buf);
+        if(f.name.toLowerCase().endsWith('.json')){ importBackup(text); msgs.push(`${f.name}: säkerhetskopia återställd`); continue; }
+        res=parseFile(text,f.name);
+      }
+      const {source,txs,skipped}=res;
+      let added=0;
+      for(const t of txs){ if(!existing.has(t.id)){ existing.add(t.id); S.transactions.push(t); added++; } }
+      msgs.push(`${f.name} (${source}): ${added} nya, ${txs.length-added} dubbletter${skipped?`, ${skipped} rader hoppades över`:''}`);
+    }catch(e){ msgs.push(`${f.name}: ${e.message}`); }
+  }
+  autoCategorize(); save();
+  const months=[...new Set(S.transactions.map(t=>t.date.slice(0,7)))];
+  if(S.ui.period!=='all' && !months.includes(S.ui.period.slice(2))) S.ui.period='all';
+  toast(msgs.join('\n')); render();
+}
+function importBackup(text){
+  const d=JSON.parse(text);
+  if(!d.transactions||!d.categories) throw new Error('Ogiltig säkerhetskopia');
+  S=d; S.ui=Object.assign(defaultState().ui,S.ui||{}); S.aliases=S.aliases||{};
+}
+
+/* ============ Filter ============ */
+function inPeriod(t){
+  const p=S.ui.period; if(p==='all') return true;
+  return p.startsWith('Y:') ? t.date.startsWith(p.slice(2)) : t.date.slice(0,7)===p.slice(2);
+}
+function periodTx(){ return S.transactions.filter(inPeriod); }
+function renderPeriod(){
+  const months=[...new Set(S.transactions.map(t=>t.date.slice(0,7)))].sort().reverse();
+  const years=[...new Set(months.map(m=>m.slice(0,4)))];
+  let h='<option value="all">Alla</option>';
+  for(const y of years){ h+=`<optgroup label="${y}"><option value="Y:${y}">Hela ${y}</option>`;
+    for(const m of months.filter(m=>m.startsWith(y))) h+=`<option value="M:${m}">${monthLabel(m)}</option>`;
+    h+='</optgroup>'; }
+  const sel=$('#period'); sel.innerHTML=h; sel.value=S.ui.period; if(sel.value!==S.ui.period){ S.ui.period='all'; sel.value='all'; }
+}
+
+/* ============ Vyer ============ */
+function render(){
+  document.body.classList.toggle('loggedout',!user);
+  if(!user) return renderLogin();
+  if(!ready){ $('#main').innerHTML='<div class="empty">Hämtar din data…</div>'; return; }
+  renderPeriod();
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===S.ui.view));
+  if(!S.transactions.length && S.ui.view!=='settings') return renderImport(true);
+  ({overview:renderOverview,board:renderBoard,list:renderList,settings:renderSettings,import:()=>renderImport(false)})[S.ui.view]();
+}
+
+function sums(txs){
+  let exp=0,inc=0,saved=0; const byCat=new Map();
+  for(const t of txs){
+    const ty=typeOf(t); if(ty==='transfer') continue;
+    if(ty==='income'){ inc+=t.amount; continue; }
+    if(ty==='saving'){ saved-=t.amount; continue; } // insättning = negativt belopp = sparat; uttag minskar
+    exp-=t.amount; const k=t.categoryId; byCat.set(k,(byCat.get(k)||0)-t.amount);
+  }
+  return {exp,inc,saved,byCat};
+}
+
+function renderOverview(){
+  const txs=periodTx(), {exp,inc,saved,byCat}=sums(txs);
+  const savePct = inc>0?Math.round(saved/inc*100):null;
+  const uncat=txs.filter(t=>!t.categoryId).length;
+  const cats=[...byCat.entries()].filter(([,v])=>Math.abs(v)>=0.5).sort((a,b)=>b[1]-a[1]);
+  const max=Math.max(1,...cats.map(c=>c[1]));
+  // månader
+  const allMonths=[...new Set(S.transactions.map(t=>t.date.slice(0,7)))].sort().slice(-18);
+  const mData=allMonths.map(m=>{ const s=sums(S.transactions.filter(t=>t.date.startsWith(m))); return {m,...s}; });
+  const mMax=Math.max(1,...mData.map(d=>d.exp));
+  const order=[...S.categories.map(c=>c.id),null];
+  const merch=new Map();
+  for(const t of txs){ if(typeOf(t)!=='expense') continue; const k=txKey(t); const e=merch.get(k)||{name:displayName(t),sum:0,n:0,cat:t.categoryId}; e.sum-=t.amount; e.n++; merch.set(k,e); }
+  const top=[...merch.values()].sort((a,b)=>b.sum-a.sum).slice(0,10);
+  const foreign=txs.filter(t=>t.currency&&t.currency.toUpperCase()!=='SEK').length;
+
+  $('#main').innerHTML=`
+  <div class="grid kpis">
+    <div class="card kpi"><div class="label">Utgifter</div><div class="value">${kr(exp)}</div></div>
+    <div class="card kpi"><div class="label">Inkomster</div><div class="value">${kr(inc)}</div></div>
+    <div class="card kpi"><div class="label">Sparat</div><div class="value" style="color:${(S.categories.find(c=>c.type==='saving')||{}).color||'inherit'}">${kr(saved)}${savePct!==null?` <span class="muted" style="font-size:13px;font-weight:400">${savePct}% av inkomst</span>`:''}</div></div>
+    <div class="card kpi"><div class="label">Kvar efter sparande</div><div class="value ${inc-exp-saved<0?'neg':'pos'}">${kr(inc-exp-saved)}</div></div>
+    <div class="card kpi" style="cursor:pointer" onclick="go('board')"><div class="label">Okategoriserade</div><div class="value">${uncat} <span class="muted" style="font-size:13px;font-weight:400">st → sortera</span></div></div>
+  </div>
+  ${foreign?`<p class="muted">Obs: ${foreign} transaktioner är i annan valuta än SEK och räknas just nu som SEK.</p>`:''}
+  <div class="grid two" style="margin-top:16px">
+    <div class="card"><h2>Utgifter per kategori</h2>
+      ${cats.length?cats.map(([id,v])=>{const c=catById(id)||UNCAT;return `<div class="barrow" onclick="showCat(${id===null?'null':`'${id}'`})">
+        <div style="display:flex;align-items:center;min-width:0"><span class="dot" style="background:${c.color}"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span></div>
+        <div class="bartrack"><div class="bar" style="width:${Math.max(0,v)/max*100}%;background:${c.color}"></div></div>
+        <div class="num">${kr(v)} <span class="muted">${exp>0?Math.round(v/exp*100):0}%</span></div></div>`;}).join(''):'<p class="muted">Inga utgifter i perioden.</p>'}
+    </div>
+    <div class="card"><h2>Utgifter per månad</h2>
+      <div class="months">${mData.map(d=>{
+        const segs=order.map(id=>({id,v:Math.max(0,d.byCat.get(id)||0)})).filter(s=>s.v>0);
+        return `<div class="mcol ${S.ui.period==='M:'+d.m?'sel':''}" onclick="setPeriod('M:${d.m}')" title="${monthLabel(d.m)}\nUtgifter: ${kr(d.exp)}\nInkomster: ${kr(d.inc)}">
+          <div class="ml num" style="font-size:10px">${Math.round(d.exp/1000)}k</div>
+          <div class="mstack" style="height:${d.exp/mMax*160}px">${segs.map(s=>`<div style="height:${s.v/d.exp*100}%;background:${(catById(s.id)||UNCAT).color}" title="${esc((catById(s.id)||UNCAT).name)}: ${kr(s.v)}"></div>`).join('')}</div>
+          <div class="ml">${monthLabel(d.m)}</div></div>`;}).join('')}</div>
+      <p class="muted" style="margin:8px 0 0;font-size:12px">Klicka på en månad för att välja den. Hovra för detaljer.</p>
+    </div>
+  </div>
+  ${savingCard(mData)}
+  <div class="card" style="margin-top:16px"><h2>Största mottagare</h2>
+    <table><thead><tr><th>Mottagare</th><th>Kategori</th><th class="num">Antal</th><th class="num">Summa</th></tr></thead><tbody>
+    ${top.map(e=>{const c=catById(e.cat)||UNCAT;return `<tr><td>${esc(e.name)}</td><td><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</td><td class="num">${e.n}</td><td class="num">${kr(e.sum)}</td></tr>`;}).join('')}
+    </tbody></table></div>`;
+}
+
+function savingCard(mData){
+  const sc=S.categories.find(c=>c.type==='saving'); if(!sc) return '';
+  const color=sc.color, total=mData.reduce((s,d)=>s+d.saved,0);
+  const withInc=mData.filter(d=>d.inc>0), avg=mData.length?total/mData.length:0;
+  const rate=withInc.reduce((s,d)=>s+d.inc,0)>0 ? Math.round(withInc.reduce((s,d)=>s+d.saved,0)/withInc.reduce((s,d)=>s+d.inc,0)*100) : null;
+  const mx=Math.max(1,...mData.map(d=>Math.abs(d.saved)));
+  let cum=0;
+  return `<div class="card" style="margin-top:16px"><h2>Sparande per månad</h2>
+    <div class="toolbar" style="gap:24px">
+      <div><div class="muted" style="font-size:12px">Totalt sparat (visade månader)</div><b class="num" style="font-size:18px">${kr(total)}</b></div>
+      <div><div class="muted" style="font-size:12px">Snitt per månad</div><b class="num" style="font-size:18px">${kr(avg)}</b></div>
+      ${rate!==null?`<div><div class="muted" style="font-size:12px">Sparkvot</div><b class="num" style="font-size:18px">${rate}%</b></div>`:''}
+    </div>
+    ${total===0&&!mData.some(d=>d.saved)?`<p class="muted">Inga sparöverföringar hittades. Överföringar vars beskrivning innehåller "Avanza" hamnar här automatiskt – annars kan du dra dem till kategorin <b>${esc(sc.name)}</b> under Sortera.</p>`:
+    `<div class="months" style="height:180px">${mData.map(d=>{cum+=d.saved;return `<div class="mcol ${S.ui.period==='M:'+d.m?'sel':''}" onclick="setPeriod('M:${d.m}')" title="${monthLabel(d.m)}\nSparat: ${kr(d.saved)}\nAckumulerat: ${kr(cum)}${d.inc>0?`\nAndel av inkomst: ${Math.round(d.saved/d.inc*100)}%`:''}">
+      <div class="ml num" style="font-size:10px">${d.saved?Math.round(d.saved/1000*10)/10+'k':''}</div>
+      <div class="mstack" style="height:${Math.abs(d.saved)/mx*120}px;background:${d.saved<0?'var(--neg)':color}"></div>
+      <div class="ml">${monthLabel(d.m)}</div></div>`;}).join('')}</div>
+    <p class="muted" style="margin:8px 0 0;font-size:12px">Uttag från Avanza tillbaka till kontot räknas som negativt sparande (röd stapel).</p>`}
+  </div>`;
+}
+
+/* --- Sortera (dra och släpp) --- */
+let dragMap=new Map(), dragKey=null;
+function renderBoard(){
+  const txs=periodTx(); dragMap=new Map();
+  const cols=[UNCAT,...S.categories];
+  const html=cols.map(c=>{
+    const list=txs.filter(t=>(t.categoryId||null)===c.id);
+    const groups=new Map();
+    for(const t of list){ const k=S.ui.group?groupKey(t):t.id; const g=groups.get(k)||{key:k,desc:displayName(t),kinds:new Set(),pats:new Set(),marks:new Set(),notes:[],ids:[],sum:0,dates:[]};
+      if(t.kind) g.kinds.add(t.kind); g.pats.add(txKey(t)); if(t.mark) g.marks.add(t.mark); if(t.note) g.notes.push(t.note); g.ids.push(t.id); g.sum+=t.amount; g.dates.push(t.date); groups.set(k,g); }
+    const arr=[...groups.values()].sort((a,b)=>Math.abs(b.sum)-Math.abs(a.sum));
+    const total=list.reduce((s,t)=>s+t.amount,0);
+    const cards=arr.slice(0,150).map(g=>{ const dk=(c.id||'_')+'::'+g.key; dragMap.set(dk,{ids:g.ids,patterns:[...g.pats].filter(Boolean)});
+      const dates=g.dates.sort(); let dl=dates.length>1?`${dates[0].slice(5)} – ${dates[dates.length-1].slice(5)}`:dates[0];
+      if(g.kinds.size && ![...g.kinds].includes(g.desc)) dl+=' · '+esc([...g.kinds].join(', '));
+      return `<div class="tx" draggable="true" data-key="${esc(dk)}" style="border-left-color:${c.color}" title="${esc(g.desc)}">
+        <div class="d">${[...g.marks].map(markIcon).join('')}${esc(g.desc||'(ingen beskrivning)')}${g.ids.length>1?`<span class="badge">×${g.ids.length}</span>`:''}</div>
+        <div class="m"><span>${dl}</span><span class="${g.sum<0?'':'pos'}">${fmtKr2.format(g.sum)}</span></div>
+        ${g.notes.length?`<div class="note">📝 ${esc(g.notes.join(' · '))}</div>`:''}</div>`;}).join('');
+    return `<div class="col ${c.id===null?'uncat':''}" data-cat="${c.id===null?'':c.id}">
+      <div class="colhead"><span class="dot" style="background:${c.color}"></span><b>${esc(c.name)}</b><span class="muted num">${list.length} st · ${kr(Math.abs(total)+0)}</span></div>
+      <div class="colbody">${cards||'<div class="muted" style="font-size:12px;text-align:center;padding:12px">Dra hit</div>'}${arr.length>150?`<div class="muted">+${arr.length-150} till…</div>`:''}</div></div>`;
+  }).join('');
+  $('#main').innerHTML=`<div class="toolbar">
+      <label><input type="checkbox" id="learn" ${S.ui.learn?'checked':''}> Kom ihåg: kategorisera samma mottagare automatiskt framöver</label>
+      <label><input type="checkbox" id="grp" ${S.ui.group?'checked':''}> Gruppera per mottagare</label>
+      <span class="muted">${matchMedia('(hover: none)').matches?'Tryck på ett kort för att välja kategori, namn och markering.':'Dra kort mellan kategorierna, eller klicka för att ändra.'} Visar perioden: ${esc($('#period').selectedOptions[0]?.textContent||'Alla')}.</span></div>
+    <div class="board">${html}</div>`;
+  $('#learn').onchange=e=>{S.ui.learn=e.target.checked;save();};
+  $('#grp').onchange=e=>{S.ui.group=e.target.checked;save();render();};
+  document.querySelectorAll('.tx').forEach(el=>{
+    el.addEventListener('dragstart',e=>{ dragKey=el.dataset.key; el.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain','tx'); });
+    el.addEventListener('dragend',()=>{ el.classList.remove('dragging'); dragKey=null; });
+    el.addEventListener('click',()=>{ const g=dragMap.get(el.dataset.key); if(g) openEditor(g.ids); });
+  });
+  document.querySelectorAll('.col').forEach(col=>{
+    col.addEventListener('dragover',e=>{ if(!dragKey) return; e.preventDefault(); col.classList.add('over'); });
+    col.addEventListener('dragleave',e=>{ if(!col.contains(e.relatedTarget)) col.classList.remove('over'); });
+    col.addEventListener('drop',e=>{ e.preventDefault(); col.classList.remove('over'); if(dragKey) moveTo(dragKey,col.dataset.cat||null); });
+  });
+}
+function moveTo(key,catId){
+  const g=dragMap.get(key); if(!g) return;
+  const extra=assignCategory(g.ids,g.patterns,catId);
+  save(); render();
+  const c=catById(catId)||UNCAT;
+  toast(`${g.ids.length} st → ${c.name}${extra?` (+${extra} i andra perioder)`:''}`);
+}
+// Sätter kategori på transaktionerna och lär sig mottagarna (om "Kom ihåg" är på). Returnerar antal extra som följde med.
+function assignCategory(idList,patterns,catId){
+  const ids=new Set(idList); let extra=0;
+  const g={patterns:patterns.filter(Boolean)};
+  for(const t of S.transactions) if(ids.has(t.id)){ t.categoryId=catId; t.manual=true; }
+  if(S.ui.learn && g.patterns.length){
+    const pats=new Set(g.patterns);
+    S.rules=S.rules.filter(r=>!(r.learned && pats.has(r.pattern)));
+    if(catId){
+      for(const p of pats) S.rules.unshift({pattern:p,categoryId:catId,learned:true});
+      for(const t of S.transactions) if(!ids.has(t.id) && !t.manual && pats.has(txKey(t))){ t.categoryId=catId; extra++; }
+    }
+  }
+  return extra;
+}
+
+/* --- Redigera namn, anteckning, markering --- */
+function openEditor(ids){
+  const txs=ids.map(id=>S.transactions.find(t=>t.id===id)).filter(Boolean).sort((a,b)=>b.date.localeCompare(a.date));
+  if(!txs.length) return;
+  const keys=[...new Set(txs.map(txKey))], oneKey=keys.length===1?keys[0]:null;
+  const d=$('#editor');
+  const markOpts=sel=>`<option value="">Ingen markering</option>`+Object.entries(MARKERS).map(([k,v])=>`<option value="${k}" ${sel===k?'selected':''}>${v}</option>`).join('');
+  d.innerHTML=`<form method="dialog">
+    <h2>${esc(displayName(txs[0]))}${txs.length>1?` <span class="muted" style="font-weight:400">· ${txs.length} transaktioner</span>`:''}</h2>
+    <label class="field"><span>Kategori${txs.length>1?' <span class="muted">– för alla '+txs.length+'</span>':''}</span>
+      <select id="edCat">${(()=>{ const cats=new Set(txs.map(t=>t.categoryId||'')); const cur=cats.size===1?[...cats][0]:'__mixed';
+        return (cur==='__mixed'?'<option value="__mixed" selected>(blandade – ändras inte)</option>':'')+`<option value="" ${cur===''?'selected':''}>Okategoriserat</option>`+
+          S.categories.map(c=>`<option value="${c.id}" ${cur===c.id?'selected':''}>${esc(c.name)}</option>`).join(''); })()}</select></label>
+    ${oneKey?`<label class="field"><span>Namn på mottagaren <span class="muted">– gäller alla från ”${esc(txs[0].description)}”, även framtida importer</span></span>
+      <input type="text" id="edAlias" value="${esc(S.aliases[oneKey]||'')}" placeholder="${esc(txs[0].description)}"></label>`:''}
+    ${txs.length>1?`<div class="toolbar" style="margin:10px 0 0"><span class="muted">Markera alla:</span><select id="edAllMark">${markOpts('')}</select></div>`:''}
+    <div class="edlist">${txs.slice(0,100).map(t=>`<div class="edrow" data-id="${esc(t.id)}">
+      <div class="edhead"><span>${t.date} · ${esc(t.description)}${t.kind?' · <span class="muted">'+esc(t.kind)+'</span>':''}</span><b class="num ${t.amount<0?'':'pos'}">${fmtKr2.format(t.amount)}</b></div>
+      <div class="edfields"><select data-f="mark">${markOpts(t.mark||'')}</select>
+        <input type="text" data-f="alias" value="${esc(t.alias||'')}" placeholder="Eget namn (bara denna)">
+        <input type="text" data-f="note" value="${esc(t.note||'')}" placeholder="Anteckning…"></div></div>`).join('')}</div>
+    ${txs.length>100?`<p class="muted">Visar 100 av ${txs.length}.</p>`:''}
+    <div class="toolbar" style="justify-content:flex-end;margin:14px 0 0">
+      <button class="btn primary" value="save">Spara</button><button type="button" class="btn" id="edCancel">Avbryt</button></div></form>`;
+  const all=$('#edAllMark'); if(all) all.onchange=()=>d.querySelectorAll('[data-f=mark]').forEach(s=>s.value=all.value);
+  $('#edCancel').onclick=()=>d.close('cancel');
+  const startCat=$('#edCat').value;
+  d.onclose=()=>{
+    if(d.returnValue!=='save') return;
+    const newCat=$('#edCat').value;
+    if(newCat!==startCat && newCat!=='__mixed') assignCategory(txs.map(t=>t.id),keys,newCat||null);
+    if(oneKey){ const v=$('#edAlias').value.trim(); if(v) S.aliases[oneKey]=v; else delete S.aliases[oneKey]; }
+    d.querySelectorAll('.edrow').forEach(r=>{ const t=S.transactions.find(x=>x.id===r.dataset.id); if(!t) return;
+      for(const f of ['mark','alias','note']){ const v=r.querySelector(`[data-f=${f}]`).value.trim(); if(v) t[f]=v; else delete t[f]; } });
+    save(); render(); toast('Sparat');
+  };
+  d.returnValue=''; d.showModal();
+}
+
+/* --- Transaktionslista --- */
+let listFilter={q:'',cat:'*',mark:'*'};
+function renderList(){
+  const q=listFilter.q.toLowerCase();
+  let txs=periodTx().filter(t=>(!q||[t.description,displayName(t),t.kind,t.note,t.amount].some(v=>String(v||'').toLowerCase().includes(q)))
+    && (listFilter.cat==='*'||(listFilter.cat==='_'?!t.categoryId:t.categoryId===listFilter.cat))
+    && (!listFilter.mark||listFilter.mark==='*'||(listFilter.mark==='_any'?!!t.mark:listFilter.mark==='_note'?!!t.note:t.mark===listFilter.mark)));
+  txs.sort((a,b)=>b.date.localeCompare(a.date)||a.amount-b.amount);
+  const total=txs.reduce((s,t)=>s+t.amount,0);
+  const opts=(sel)=>`<option value="" ${!sel?'selected':''}>Okategoriserat</option>`+S.categories.map(c=>`<option value="${c.id}" ${sel===c.id?'selected':''}>${esc(c.name)}</option>`).join('');
+  $('#main').innerHTML=`<div class="card">
+    <div class="toolbar"><input type="search" id="q" placeholder="Sök namn, anteckning eller belopp…" value="${esc(listFilter.q)}" style="min-width:240px">
+      <select id="fc"><option value="*">Alla kategorier</option><option value="_">Okategoriserat</option>${S.categories.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+      <select id="fm"><option value="*">Alla markeringar</option><option value="_any">Alla markerade</option><option value="_note">Med anteckning</option>${Object.entries(MARKERS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
+      <span class="muted">${txs.length} transaktioner · summa ${kr(total)}</span></div>
+    <div style="overflow-x:auto"><table class="txtable"><thead><tr><th>Datum</th><th>Beskrivning</th><th>Konto</th><th class="num">Belopp</th><th>Kategori</th><th></th></tr></thead><tbody>
+    ${txs.slice(0,600).map(t=>{const name=displayName(t);return `<tr><td class="num" style="text-align:left">${t.date}</td>
+      <td>${markIcon(t.mark)}<b style="font-weight:550">${esc(name)}</b>${name!==t.description?` <span class="muted" style="font-size:12px">(${esc(t.description)})</span>`:''}${t.kind&&t.kind!==t.description?` <span class="muted" style="font-size:12px">· ${esc(t.kind)}</span>`:''}
+        ${t.note?`<div class="lnote">📝 ${esc(t.note)}</div>`:''}</td><td class="muted">${t.source}</td>
+      <td class="num ${t.amount<0?'':'pos'}">${fmtKr2.format(t.amount)}${t.currency!=='SEK'?' '+esc(t.currency):''}</td>
+      <td><span class="dot" style="background:${catOf(t).color}"></span><select data-id="${esc(t.id)}">${opts(t.categoryId)}</select></td>
+      <td><button class="iconbtn" data-edit="${esc(t.id)}" title="Ändra namn, markering, anteckning">✎</button></td></tr>`;}).join('')}
+    </tbody></table></div>${txs.length>600?`<p class="muted">Visar de 600 senaste. Använd sök eller period för att smalna av.</p>`:''}</div>`;
+  $('#fc').value=listFilter.cat;
+  const q2=$('#q'); q2.oninput=()=>{listFilter.q=q2.value; renderList(); const n=$('#q'); n.focus(); n.setSelectionRange(n.value.length,n.value.length);};
+  $('#fc').onchange=e=>{listFilter.cat=e.target.value; renderList();};
+  $('#fm').value=listFilter.mark||'*';
+  $('#fm').onchange=e=>{listFilter.mark=e.target.value; renderList();};
+  document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEditor([b.dataset.edit]));
+  document.querySelectorAll('select[data-id]').forEach(s=>s.onchange=()=>{
+    const t=S.transactions.find(x=>x.id===s.dataset.id); t.categoryId=s.value||null; t.manual=true; save(); renderList();
+  });
+}
+function showCat(id){ listFilter={q:'',cat:id===null?'_':id,mark:'*'}; go('list'); }
+
+/* --- Kategorier & regler --- */
+function renderSettings(){
+  const catOpts=(sel)=>S.categories.map(c=>`<option value="${c.id}" ${sel===c.id?'selected':''}>${esc(c.name)}</option>`).join('');
+  const counts={}; for(const t of S.transactions) counts[t.categoryId]=(counts[t.categoryId]||0)+1;
+  $('#main').innerHTML=`<div class="grid two">
+  <div class="card"><h2>Kategorier</h2>
+    ${S.categories.map(c=>`<div class="catrow" data-id="${c.id}">
+      <input type="color" value="${c.color}" data-f="color"><input type="text" value="${esc(c.name)}" data-f="name">
+      <select data-f="type"><option value="expense" ${c.type==='expense'?'selected':''}>Utgift</option><option value="income" ${c.type==='income'?'selected':''}>Inkomst</option><option value="saving" ${c.type==='saving'?'selected':''}>Sparande</option><option value="transfer" ${c.type==='transfer'?'selected':''}>Överföring (räknas ej)</option></select>
+      <span class="muted num" style="width:46px">${counts[c.id]||0} st</span><button class="btn danger" data-del="${c.id}" title="Ta bort">✕</button></div>`).join('')}
+    <div class="toolbar" style="margin-top:12px"><input type="text" id="newCat" placeholder="Ny kategori…"><button class="btn primary" id="addCat">Lägg till</button></div>
+  </div>
+  <div class="card"><h2>Regler <span class="muted" style="font-weight:400">(${S.rules.length})</span></h2>
+    <p class="muted" style="margin-top:-6px">Om mottagaren innehåller ett ord som börjar med mönstret får transaktionen kategorin. Finns ingen träff provas transaktionstypen (t.ex. "Lön", "Överföring"). Inlärda regler (från att dra kort) vinner, därefter det längsta/mest specifika mönstret. Avsluta mönstret med mellanslag för att kräva exakt ord.</p>
+    <div class="toolbar"><input type="text" id="newPat" placeholder="t.ex. ica eller sl "><select id="newPatCat">${catOpts()}</select><button class="btn primary" id="addRule">Lägg till regel</button></div>
+    <div style="max-height:520px;overflow-y:auto"><table><tbody>
+    ${S.rules.map((r,i)=>`<tr><td><code>${esc(r.pattern)}</code>${r.learned?' <span class="muted" style="font-size:11px">inlärd</span>':''}</td><td><select data-ri="${i}">${catOpts(r.categoryId)}</select></td><td><button class="btn danger" data-rdel="${i}">✕</button></td></tr>`).join('')}
+    </tbody></table></div>
+  </div></div>
+  <div class="card" style="margin-top:16px"><h2>Data</h2>
+    <p class="muted">Din data sparas i din Supabase-databas och synkas mellan dator och telefon. Inloggad som <b>${esc(user?.email||'')}</b>.
+      Gratisnivån saknar automatisk säkerhetskopiering – spara gärna en kopia ibland.</p>
+    <div class="toolbar"><button class="btn" id="logout">Logga ut</button><button class="btn" id="exp">Spara säkerhetskopia (.json)</button><button class="btn" id="imp">Återställ säkerhetskopia</button>
+    <button class="btn" id="rerun">Kör om reglerna på allt (behåller manuella val)</button><button class="btn" id="resetManual">Glöm manuella val</button><button class="btn danger" id="wipe">Radera alla transaktioner</button></div></div>`;
+  document.querySelectorAll('.catrow').forEach(row=>{
+    const c=catById(row.dataset.id);
+    row.querySelectorAll('[data-f]').forEach(inp=>inp.onchange=()=>{ c[inp.dataset.f]=inp.value; save(); renderSettings(); });
+  });
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
+    const id=b.dataset.del; if(!confirm(`Ta bort kategorin "${catById(id).name}"? Transaktionerna blir okategoriserade och dess regler tas bort.`)) return;
+    S.categories=S.categories.filter(c=>c.id!==id); S.rules=S.rules.filter(r=>r.categoryId!==id);
+    for(const t of S.transactions) if(t.categoryId===id){ t.categoryId=null; t.manual=false; }
+    autoCategorize(); save(); renderSettings();
+  });
+  $('#addCat').onclick=()=>{ const n=$('#newCat').value.trim(); if(!n) return;
+    const palette=['#3949ab','#d81b60','#00acc1','#8e24aa','#f4511e','#43a047','#fdd835','#6d4c41'];
+    S.categories.splice(S.categories.findIndex(c=>c.type!=='expense')>=0?S.categories.findIndex(c=>c.type!=='expense'):S.categories.length,0,
+      {id:'c'+Date.now().toString(36),name:n,color:palette[S.categories.length%palette.length],type:'expense'});
+    save(); renderSettings(); };
+  $('#addRule').onclick=()=>{ const p=$('#newPat').value.toLowerCase().replace(/^\s+/,''); if(!p.trim()) return;
+    S.rules.unshift({pattern:p,categoryId:$('#newPatCat').value,learned:false}); autoCategorize(); save(); renderSettings(); toast('Regel tillagd och tillämpad'); };
+  document.querySelectorAll('[data-ri]').forEach(s=>s.onchange=()=>{ S.rules[+s.dataset.ri].categoryId=s.value; autoCategorize(); save(); });
+  document.querySelectorAll('[data-rdel]').forEach(b=>b.onclick=()=>{ S.rules.splice(+b.dataset.rdel,1); autoCategorize(); save(); renderSettings(); });
+  $('#exp').onclick=()=>{ const blob=new Blob([JSON.stringify(S,null,1)],{type:'application/json'}); const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=`utgifter-backup-${new Date().toISOString().slice(0,10)}.json`; a.click(); };
+  $('#imp').onclick=()=>{ const i=document.createElement('input'); i.type='file'; i.accept='.json'; i.onchange=async()=>{ try{ importBackup(decode(await i.files[0].arrayBuffer())); save(); render(); toast('Säkerhetskopia återställd'); }catch(e){ toast(e.message); } }; i.click(); };
+  $('#rerun').onclick=()=>{ autoCategorize(); save(); toast('Reglerna har körts om'); };
+  $('#resetManual').onclick=()=>{ if(!confirm('Alla manuella kategoriseringar nollställs och reglerna bestämmer igen. Fortsätta?')) return; S.transactions.forEach(t=>t.manual=false); autoCategorize(); save(); toast('Klart'); };
+  $('#logout').onclick=()=>logout();
+  $('#wipe').onclick=()=>{ if(!confirm('Radera ALLA importerade transaktioner? Kategorier och regler behålls.')) return; S.transactions=[]; save(); render(); };
+}
+
+/* --- Import --- */
+function renderImport(empty){
+  $('#main').innerHTML=`<div class="card" style="max-width:760px;margin:0 auto">
+    ${empty?'<h2>Välkommen! Börja med att importera ett kontoutdrag.</h2>':'<h2>Importera kontoutdrag</h2>'}
+    <div id="dropzone"><div style="font-size:16px;font-weight:600">Dra och släpp CSV-filer här</div><div class="muted">eller klicka för att välja. Flera filer går bra – dubbletter hoppas över.</div></div>
+    <h3 style="font-size:14px;margin-top:20px">Så exporterar du</h3>
+    <p><b>Swedbank:</b> Internetbanken → konto → <i>Transaktionsrapport</i> → välj period → spara som <b>PDF</b> och dra in filen här. CSV-export fungerar också. (PDF-läsaren laddas från internet första gången.)</p>
+    <details><summary class="muted" style="cursor:pointer">…eller klistra in text från Swedbank-rapporten</summary>
+      <textarea id="paste" rows="8" style="width:100%;margin-top:8px;font:12px ui-monospace,monospace;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px" placeholder="260115 260115 260115 ICA SUPERMARKET Kortköp/uttag -123,45 1 000,00"></textarea>
+      <button class="btn primary" id="pasteBtn" style="margin-top:6px">Importera inklistrad text</button></details>
+    <p><b>Revolut:</b> Appen → konto → <i>…</i> → <i>Kontoutdrag</i> → välj <b>Excel/CSV</b> och period. Bara genomförda transaktioner tas med; avgifter dras från beloppet och påfyllningar/valutaväxlingar blir “Överföringar”.</p>
+    <p class="muted">Filerna läses i din webbläsare. Bara transaktionerna (datum, text, belopp) sparas i din databas – inte själva filen eller kontonummer.</p></div>`;
+  const dz=$('#dropzone'); dz.onclick=()=>$('#fileInput').click();
+  $('#pasteBtn').onclick=()=>importPasted($('#paste').value);
+}
+
+/* ============ Global UI ============ */
+function go(v){ S.ui.view=v; save(); render(); window.scrollTo(0,0); }
+function setPeriod(p){ S.ui.period=(S.ui.period===p?'all':p); save(); render(); }
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>go(b.dataset.view));
+$('#period').onchange=e=>{ S.ui.period=e.target.value; save(); render(); };
+$('#importBtn').onclick=()=>$('#fileInput').click();
+$('#fileInput').onchange=e=>{ importFiles([...e.target.files]); e.target.value=''; };
+// släpp filer var som helst på sidan
+let dragDepth=0;
+const isFileDrag=e=>[...(e.dataTransfer?.types||[])].includes('Files');
+window.addEventListener('dragenter',e=>{ if(!isFileDrag(e)) return; dragDepth++; $('#globaldrop').style.display='flex'; });
+window.addEventListener('dragleave',e=>{ if(!isFileDrag(e)) return; if(--dragDepth<=0){ dragDepth=0; $('#globaldrop').style.display='none'; } });
+window.addEventListener('dragover',e=>{ if(isFileDrag(e)) e.preventDefault(); });
+window.addEventListener('drop',e=>{ if(!isFileDrag(e)) return; e.preventDefault(); dragDepth=0; $('#globaldrop').style.display='none'; if(e.dataTransfer.files.length) importFiles([...e.dataTransfer.files]); });
+
+start();
+</script>
+</body>
+</html>

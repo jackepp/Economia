@@ -1,0 +1,10 @@
+# Bankdata och säkerhetskopior får aldrig hamna i repot
+*.pdf
+*.csv
+*.xlsx
+*.xls
+*.json
+!package.json
+
+# Lokala verktygsfiler
+.claude/
