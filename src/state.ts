@@ -3,16 +3,25 @@ import type { Category, CatView, State, Transaction, UiState } from './types';
 
 export const LEGACY_STORE_KEY = 'mina-utgifter-v1';
 export const UI_KEY = 'money-dash-ui';
-export const RULES_VERSION = 4;
+export const RULES_VERSION = 5;
 
-/** Underkategorier till Bil (id, namn, färg). */
-const BIL_SUBS: [string, string, string][] = [
-  ['bil_drivm', 'Drivmedel', '#4a86d8'],
-  ['bil_park', 'Parkering', '#7aa7e3'],
-  ['bil_fors', 'Försäkring & skatt', '#123f80'],
-  ['bil_serv', 'Service & reparation', '#9ec0ee'],
-];
-const bilSubs = (): Category[] => BIL_SUBS.map(([id, name, color]) => ({ id, name, color, type: 'expense', parent: 'transp' }));
+/** Standard-underkategorier per huvudkategori: [id, namn, färg]. Regler finns i DEFAULT_RULES[id]. */
+const DEFAULT_SUBS: Record<string, [string, string, string][]> = {
+  boende: [
+    ['boende_lan', 'Amortering + ränta', '#8d6e63'],
+    ['boende_hyra', 'Hyra', '#a1887f'],
+  ],
+  transp: [
+    ['bil_drivm', 'Drivmedel', '#4a86d8'],
+    ['bil_park', 'Parkering', '#7aa7e3'],
+    ['bil_fors', 'Försäkring & skatt', '#123f80'],
+    ['bil_serv', 'Service', '#9ec0ee'],
+    ['bil_besikt', 'Besiktning', '#2a5aa8'],
+    ['bil_rep', 'Reparation', '#6f95cc'],
+  ],
+};
+const defaultSubs = (parent: string): Category[] =>
+  (DEFAULT_SUBS[parent] || []).map(([id, name, color]) => ({ id, name, color, type: 'expense', parent }));
 
 const TOP_CATS: Category[] = (
   [
@@ -31,7 +40,7 @@ const TOP_CATS: Category[] = (
     ['overf', 'Överföringar', '#a7b4c2', 'transfer'],
   ] as const
 ).map(([id, name, color, type]) => ({ id, name, color, type }));
-const DEFAULT_CATS: Category[] = TOP_CATS.flatMap((c) => (c.id === 'transp' ? [c, ...bilSubs()] : [c]));
+const DEFAULT_CATS: Category[] = TOP_CATS.flatMap((c) => [c, ...defaultSubs(c.id)]);
 
 const defaultUi = (): UiState => ({ view: 'overview', period: 'all', learn: true, group: true });
 
@@ -96,14 +105,23 @@ export function normalize(): boolean {
       { pattern: 'isk ', categoryId: 'spar', learned: false });
     changed = true;
   }
-  // Migrering v4: underkategorier för Bil; flytta standardregler för bensin/parkering dit
-  if ((S.rulesVersion || 1) < 4 && catById('transp') && !S.categories.some((c) => c.parent === 'transp')) {
-    const subs = bilSubs().filter((s) => !catById(s.id));
-    S.categories.splice(S.categories.findIndex((c) => c.id === 'transp') + 1, 0, ...subs);
-    for (const s of subs) {
-      const pats = new Set(DEFAULT_RULES[s.id] || []);
-      for (const r of S.rules) if (!r.learned && r.categoryId === 'transp' && pats.has(r.pattern)) r.categoryId = s.id;
+  // Migrering v5: lägg till saknade standard-underkategorier (Bil, Boende) och flytta deras
+  // standardregler dit från huvudkategorin eller en syskonkategori. Egna/inlärda regler lämnas orörda.
+  if ((S.rulesVersion || 1) < 5) {
+    for (const parentId of Object.keys(DEFAULT_SUBS)) {
+      if (!catById(parentId)) continue;
+      const family = new Set([parentId, ...DEFAULT_SUBS[parentId].map(([id]) => id)]);
+      for (const s of defaultSubs(parentId)) {
+        if (catById(s.id)) continue;
+        const sibs = subsOf(parentId);
+        S.categories.splice(S.categories.indexOf(sibs[sibs.length - 1] || catById(parentId)!) + 1, 0, s);
+        const pats = new Set(DEFAULT_RULES[s.id] || []);
+        for (const r of S.rules) if (!r.learned && family.has(r.categoryId) && pats.has(r.pattern)) r.categoryId = s.id;
+      }
     }
+    // "Service & reparation" är nu tre: Service, Besiktning, Reparation
+    const serv = catById('bil_serv');
+    if (serv?.name === 'Service & reparation') serv.name = 'Service';
     changed = true;
   }
   // Migrering: lägg till nya standardregler när RULES_VERSION höjs (befintliga regler lämnas orörda)
