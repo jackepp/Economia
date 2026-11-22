@@ -16,7 +16,8 @@ const built = new Date().toISOString();
 export default defineConfig({
   // Relativa sökvägar: fungerar både på jackepp.github.io/money-dash/ och lokalt
   base: './',
-  server: { port: 5173 },
+  // _localtest: tillfälliga testfiler (kontoutdrag) – bevakas inte och ligger i .gitignore
+  server: { port: 5173, watch: { ignored: ['**/_localtest/**'] } },
   define: {
     __APP_VERSION__: JSON.stringify(version),
     __BUILD_TIME__: JSON.stringify(built),

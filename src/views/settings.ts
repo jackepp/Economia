@@ -1,11 +1,11 @@
-import { $, $$, errMsg, toast } from '../dom';
+import { $, $$, $opt, errMsg, toast } from '../dom';
 import { esc } from '../format';
 import { importBackup } from '../import';
 import { decode } from '../import/util';
 import { rerender } from '../nav';
 import { autoCategorize } from '../rules';
 import { catById, isSub, orderedCats, parentOf, S, save, subsOf } from '../state';
-import { logout, session } from '../sync';
+import { LOCAL_MODE, logout, session } from '../sync';
 import type { Category } from '../types';
 import { catOptions } from './common';
 
@@ -50,9 +50,12 @@ export function renderSettings(main: HTMLElement): void {
     </tbody></table></div>
   </div></div>
   <div class="card" style="margin-top:16px"><h2>Data</h2>
-    <p class="muted">Din data sparas i din Supabase-databas och synkas mellan dator och telefon. Inloggad som <b>${esc(session.user?.email || '')}</b>.
-      Gratisnivån saknar automatisk säkerhetskopiering – spara gärna en kopia ibland.</p>
-    <div class="toolbar"><button class="btn" id="logout">Logga ut</button><button class="btn" id="exp">Spara säkerhetskopia (.json)</button><button class="btn" id="imp">Återställ säkerhetskopia</button>
+    ${LOCAL_MODE
+      ? `<p class="muted"><b class="neg">Lokalt läge</b> – ingen inloggning, datan sparas bara i den här webbläsaren och påverkar inte databasen.
+        Vill du testa med dina riktiga data: spara en säkerhetskopia på den publicerade sidan och dra in .json-filen här. Kör <code>npm run dev:db</code> för att använda databasen direkt.</p>`
+      : `<p class="muted">Din data sparas i din Supabase-databas och synkas mellan dator och telefon. Inloggad som <b>${esc(session.user?.email || '')}</b>.
+      Gratisnivån saknar automatisk säkerhetskopiering – spara gärna en kopia ibland.</p>`}
+    <div class="toolbar">${LOCAL_MODE ? '' : '<button class="btn" id="logout">Logga ut</button>'}<button class="btn" id="exp">Spara säkerhetskopia (.json)</button><button class="btn" id="imp">Återställ säkerhetskopia</button>
     <button class="btn" id="rerun">Kör om reglerna på allt (behåller manuella val)</button><button class="btn" id="resetManual">Glöm manuella val</button><button class="btn danger" id="wipe">Radera alla transaktioner</button></div></div>`;
 
   for (const row of $$('.catrow', main)) {
@@ -145,7 +148,8 @@ export function renderSettings(main: HTMLElement): void {
     S.transactions.forEach((t) => (t.manual = false));
     recat(); toast('Klart');
   };
-  $('#logout', main).onclick = () => void logout();
+  const logoutBtn = $opt('#logout', main);
+  if (logoutBtn) logoutBtn.onclick = () => void logout();
   $('#wipe', main).onclick = () => {
     if (!confirm('Radera ALLA importerade transaktioner? Kategorier och regler behålls.')) return;
     S.transactions = [];

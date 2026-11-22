@@ -7,6 +7,13 @@ import type { State, Transaction } from './types';
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+/**
+ * Lokalt läge (`npm run dev`): ingen inloggning, datan sparas bara i den här webbläsaren.
+ * `npm run dev:db` (mode "db") och den publicerade sidan använder Supabase.
+ */
+export const LOCAL_MODE = import.meta.env.DEV && import.meta.env.MODE !== 'db';
+const LOCAL_DB_KEY = 'money-dash-local-db';
+
 /** Inloggad användare och om datan är hämtad. */
 export const session = { user: null as User | null, ready: false };
 
@@ -61,6 +68,15 @@ export async function syncNow(): Promise<void> {
   if (syncing) { syncAgain = true; return; }
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = null;
+  if (LOCAL_MODE) {
+    try {
+      localStorage.setItem(LOCAL_DB_KEY, JSON.stringify({ ...settingsOf(), transactions: S.transactions }));
+      setSync('ok');
+    } catch (e) {
+      setSync('error', errMsg(e));
+    }
+    return;
+  }
   syncing = true;
   try {
     const cur = new Map(S.transactions.map((t) => { const r = txRow(t, user.id); return [t.id, { r, j: JSON.stringify(r) }]; }));
@@ -103,6 +119,16 @@ export async function syncNow(): Promise<void> {
 async function loadRemote(): Promise<void> {
   setSync('loading');
   session.ready = false;
+  if (LOCAL_MODE) {
+    let saved: Partial<State> = {};
+    try { saved = JSON.parse(localStorage.getItem(LOCAL_DB_KEY) || '{}'); } catch { /* tom */ }
+    replaceState(saved);
+    const changed = normalize();
+    session.ready = true;
+    setSync('ok');
+    if (changed) scheduleSync();
+    return;
+  }
   const { data: st, error: e1 } = await sb.from('app_settings').select('data').maybeSingle();
   if (e1) throw e1;
   const rows: TxRow[] = [];
@@ -162,6 +188,7 @@ export async function login(email: string, password: string): Promise<string | n
 
 export async function logout(): Promise<void> {
   await syncNow();
+  if (LOCAL_MODE) { toast('Lokalt läge – ingen inloggning. Kör npm run dev:db för att använda databasen.'); return; }
   await sb.auth.signOut();
   reset();
 }
@@ -174,6 +201,10 @@ export async function startSession(): Promise<void> {
   window.addEventListener('beforeunload', (e) => {
     if (syncTimer || syncing) { void syncNow(); e.preventDefault(); e.returnValue = ''; }
   });
+  if (LOCAL_MODE) {
+    void enter({ id: 'local', email: 'lokalt läge' } as User);
+    return;
+  }
   const { data: { session: s } } = await sb.auth.getSession();
   if (s) void enter(s.user);
   else rerender();

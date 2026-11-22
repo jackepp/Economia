@@ -46,7 +46,20 @@ export interface Transaction {
   mark?: string;
 }
 
-export type View = 'overview' | 'board' | 'list' | 'settings' | 'import';
+export type View = 'overview' | 'trends' | 'board' | 'list' | 'settings' | 'import';
+
+export interface TrendUi {
+  /** Upplösning på x-axeln. */
+  gran: 'month' | 'week';
+  /** Huvudkategorier eller underkategorier som serier. */
+  level: 'main' | 'sub';
+  chart: 'line' | 'stack';
+  /** Antal månader bakåt, 0 = allt. */
+  range: number;
+  /** Valda serier (kategori-id, '_' = okategoriserat) → färgplats 1–8. Färgen följer serien. */
+  slots: Record<string, number>;
+  total: boolean;
+}
 
 export interface UiState {
   view: View;
@@ -54,6 +67,7 @@ export interface UiState {
   period: string;
   learn: boolean;
   group: boolean;
+  trends?: TrendUi;
 }
 
 export interface State {

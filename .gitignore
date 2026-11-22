@@ -8,6 +8,9 @@
 !package-lock.json
 !tsconfig.json
 
+# Tillfälliga testfiler
+_localtest/
+
 # Bygg och beroenden
 node_modules/
 dist/

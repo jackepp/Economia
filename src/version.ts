@@ -1,4 +1,5 @@
 import { $ } from './dom';
+import { LOCAL_MODE } from './sync';
 
 const REPO = 'https://github.com/jackepp/money-dash';
 
@@ -8,7 +9,9 @@ const fmtTime = (iso: string) =>
 /** Visar "Version abc1234 · 22 nov. 23:20" i sidfoten, med länk till commiten på GitHub. */
 function renderVersion(newer?: string): void {
   const el = $('#version');
-  const dev = import.meta.env.DEV ? ' (lokal utveckling)' : '';
+  const dev = !import.meta.env.DEV ? ''
+    : LOCAL_MODE ? ' · <b class="neg">lokalt läge</b>: data sparas bara i den här webbläsaren'
+    : ' · utveckling mot riktiga databasen';
   el.innerHTML = `Version <a href="${REPO}/commit/${__APP_VERSION__}" target="_blank" rel="noopener">${__APP_VERSION__}</a>` +
     ` · byggd ${fmtTime(__BUILD_TIME__)}${dev}` +
     (newer ? ` · <button class="btn primary" id="reloadBtn">Ny version ${newer} – ladda om</button>` : '');

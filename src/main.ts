@@ -13,6 +13,7 @@ import { showCat, renderList } from './views/list';
 import { renderLogin } from './views/login';
 import { renderOverview } from './views/overview';
 import { renderSettings } from './views/settings';
+import { renderTrends } from './views/trends';
 
 const main = $('#main');
 const periodSel = $<HTMLSelectElement>('#period');
@@ -33,6 +34,7 @@ function renderPeriod(): void {
 
 const VIEWS: Record<View, (main: HTMLElement) => void> = {
   overview: renderOverview,
+  trends: renderTrends,
   board: renderBoard,
   list: renderList,
   settings: renderSettings,
