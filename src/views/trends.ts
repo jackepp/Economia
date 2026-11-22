@@ -1,8 +1,8 @@
 import { $, $$, $opt, toast } from '../dom';
 import { esc, fmtKr2, kr } from '../format';
 import { S, save } from '../state';
-import { buildTrends, defaultTrendUi, trendStats, type Series, type TrendData } from '../trends';
-import type { TrendUi } from '../types';
+import { balanceSeries, buildTrends, defaultTrendUi, trendStats, type Series, type TrendData } from '../trends';
+import type { TrendKind, TrendUi } from '../types';
 
 const MAX_SERIES = 8;
 const SVG = 'http://www.w3.org/2000/svg';
@@ -12,16 +12,28 @@ function tui(): TrendUi {
   return S.ui.trends;
 }
 
-/** Väljer de 5 största utgiftsposterna (första gången, "Största 5", eller när valet försvinner vid nivåbyte). */
+const KINDS: [TrendKind, string][] = [['expense', 'Utgifter'], ['income', 'Inkomster'], ['saving', 'Sparande'], ['balance', 'Inkomst mot utgift']];
+/** Ord för totalen i varje vy: "Visa totala …" / "Visa övriga …". */
+const TOTAL_WORDS: Record<Exclude<TrendKind, 'balance'>, [string, string]> = {
+  expense: ['Alla utgifter', 'Övriga utgifter'],
+  income: ['Alla inkomster', 'Övriga inkomster'],
+  saving: ['Allt sparande', 'Övrigt sparande'],
+};
+
+/** Serierna som går att välja i aktuell vy. */
+const poolOf = (data: TrendData, kind: TrendKind): Series[] =>
+  kind === 'balance' ? balanceSeries(data) : data.series.filter((s) => s.type === kind);
+
+/** Väljer de 5 största (första gången, "Största 5", eller när valet försvinner vid nivå- eller vybyte). */
 let autoPick = false, levelChanged = false;
-function pickTop(ui: TrendUi, data: TrendData): void {
+function pickTop(ui: TrendUi, pool: Series[], kind: TrendKind): void {
   ui.slots = {};
-  data.series.filter((s) => s.type === 'expense').sort((a, b) => b.total - a.total).slice(0, 5)
+  (kind === 'balance' ? pool : [...pool].sort((a, b) => b.total - a.total).slice(0, 5))
     .forEach((s, i) => (ui.slots[s.id] = i + 1));
 }
 /** Tar bort valda serier som inte finns i den aktuella datan. */
-function prune(ui: TrendUi, data: TrendData): void {
-  const ids = new Set(data.series.map((s) => s.id));
+function prune(ui: TrendUi, pool: Series[]): void {
+  const ids = new Set(pool.map((s) => s.id));
   for (const id of Object.keys(ui.slots)) if (!ids.has(id)) delete ui.slots[id];
 }
 
@@ -38,32 +50,41 @@ const color = (slot: number) => `var(--s${slot})`;
 export function renderTrends(main: HTMLElement): void {
   if (!S.ui.trends) autoPick = true;
   const ui = tui();
+  const kind: TrendKind = ui.kind || 'expense';
+  const balance = kind === 'balance';
   const data = buildTrends(ui);
-  prune(ui, data);
-  if (autoPick || (levelChanged && !Object.keys(ui.slots).length)) pickTop(ui, data);
+  const pool = poolOf(data, kind);
+  prune(ui, pool);
+  if (autoPick || (levelChanged && !Object.keys(ui.slots).length)) pickTop(ui, pool, kind);
   autoPick = levelChanged = false;
-  const sel = data.series.filter((s) => ui.slots[s.id]);
+  const sel = pool.filter((s) => ui.slots[s.id]);
   const opt = <T extends string | number>(cur: T, pairs: [T, string][]) =>
     pairs.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('');
+  const stack = !balance && ui.chart === 'stack';
+  const totalLabel = balance ? ''
+    : stack ? `Visa ${TOTAL_WORDS[kind][1].toLowerCase()}`
+    : `Visa ${kind === 'saving' ? 'totalt sparande' : `totala ${kind === 'income' ? 'inkomster' : 'utgifter'}`}`;
 
   main.innerHTML = `
   <div class="toolbar trendbar">
+    <select id="trKind" aria-label="Vad som visas">${opt(kind, KINDS)}</select>
     <select id="trRange">${opt(ui.range, [[3, 'Senaste 3 mån'], [6, 'Senaste 6 mån'], [12, 'Senaste 12 mån'], [24, 'Senaste 2 år'], [0, 'Allt']])}</select>
     <select id="trGran">${opt(ui.gran, [['month', 'Per månad'], ['week', 'Per vecka']])}</select>
-    <select id="trLevel">${opt(ui.level, [['main', 'Huvudkategorier'], ['sub', 'Underkategorier']])}</select>
+    ${balance ? '' : `<select id="trLevel">${opt(ui.level, [['main', 'Huvudkategorier'], ['sub', 'Underkategorier']])}</select>
     <select id="trChart">${opt(ui.chart, [['line', 'Linjer'], ['stack', 'Staplar (staplade)']])}</select>
-    <label><input type="checkbox" id="trTotal" ${ui.total ? 'checked' : ''}> ${ui.chart === 'stack' ? 'Visa övriga utgifter' : 'Visa totala utgifter'}</label>
+    <label><input type="checkbox" id="trTotal" ${ui.total ? 'checked' : ''}> ${totalLabel}</label>`}
   </div>
   <div class="card">
+    ${!pool.length && data.periods.length ? `<p class="muted">Inga ${KINDS.find((k) => k[0] === kind)![1].toLowerCase()} i perioden.</p>` : ''}
     <div class="chips" id="trChips">
-      ${data.series.map((s) => {
+      ${pool.map((s) => {
         const slot = ui.slots[s.id];
         return `<button class="chip ${slot ? 'on' : ''}" data-sid="${esc(s.id)}" aria-pressed="${!!slot}" title="${esc(s.name)}: ${kr(s.total)} i perioden">
           <span class="key" style="${slot ? `background:${color(slot)}` : ''}"></span>${esc(s.name)}</button>`;
       }).join('')}
     </div>
-    <div class="toolbar" style="margin:6px 0 0"><span class="muted" style="font-size:12px">Tryck på en kategori för att visa eller dölja den (högst ${MAX_SERIES}).</span>
-      <span class="spacer"></span><button class="btn" id="trTop">Största 5</button><button class="btn" id="trClear">Rensa</button></div>
+    <div class="toolbar" style="margin:6px 0 0"><span class="muted" style="font-size:12px">${balance ? 'Kvar = inkomster − utgifter − sparande. Tryck för att visa eller dölja.' : `Tryck på en kategori för att visa eller dölja den (högst ${MAX_SERIES}).`}</span>
+      <span class="spacer"></span><button class="btn" id="trTop">${balance ? 'Visa alla' : 'Största 5'}</button><button class="btn" id="trClear">Rensa</button></div>
     <div id="trendChart" class="trendchart"></div>
     ${data.partial ? `<p class="muted" style="font-size:12px;margin:4px 0 0">Sista ${ui.gran === 'month' ? 'månaden' : 'veckan'} pågår fortfarande och räknas inte i trenden.</p>` : ''}
   </div>
@@ -71,23 +92,31 @@ export function renderTrends(main: HTMLElement): void {
     <h2>Trend</h2>
     ${statsTable(sel, data, ui)}
     <details style="margin-top:12px"><summary class="muted" style="cursor:pointer">Visa alla värden per ${ui.gran === 'month' ? 'månad' : 'vecka'}</summary>
-      ${dataTable(sel, data)}</details>
+      ${dataTable(sel, data, kind)}</details>
   </div>`;
 
   const on = (id: string, fn: (v: string) => void) => {
-    const el = $<HTMLSelectElement | HTMLInputElement>(id, main);
-    el.onchange = () => { fn(el.type === 'checkbox' ? String((el as HTMLInputElement).checked) : el.value); save(); renderTrends(main); };
+    const el = $opt<HTMLSelectElement | HTMLInputElement>(id, main);
+    if (el) el.onchange = () => { fn(el.type === 'checkbox' ? String((el as HTMLInputElement).checked) : el.value); save(); renderTrends(main); };
   };
+  on('#trKind', (v) => {
+    // Varje vy minns sina valda serier
+    ui.slotsBy = { ...ui.slotsBy, [kind]: ui.slots };
+    ui.kind = v as TrendKind;
+    const saved = ui.slotsBy[ui.kind];
+    ui.slots = saved ? { ...saved } : {};
+    if (!Object.keys(ui.slots).length) autoPick = true;
+  });
   on('#trRange', (v) => (ui.range = +v));
   on('#trGran', (v) => (ui.gran = v as TrendUi['gran']));
   on('#trLevel', (v) => { ui.level = v as TrendUi['level']; levelChanged = true; });
   on('#trChart', (v) => (ui.chart = v as TrendUi['chart']));
   on('#trTotal', (v) => (ui.total = v === 'true'));
   for (const b of $$('[data-sid]', main)) b.onclick = () => { toggle(ui, b.dataset.sid!); save(); renderTrends(main); };
-  $('#trTop', main).onclick = () => { pickTop(ui, data); save(); renderTrends(main); };
+  $('#trTop', main).onclick = () => { pickTop(ui, pool, kind); save(); renderTrends(main); };
   $('#trClear', main).onclick = () => { ui.slots = {}; save(); renderTrends(main); };
 
-  current = { data, ui };
+  current = { data, ui, pool, kind };
   drawChart();
 }
 
@@ -110,15 +139,16 @@ function statsTable(sel: Series[], data: TrendData, ui: TrendUi): string {
   return `<div style="overflow-x:auto"><table class="trtable"><thead><tr><th>Kategori</th><th class="num">Snitt/${per}</th><th class="num">Senaste</th><th class="num">mot snitt</th><th>Trend</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
-function dataTable(sel: Series[], data: TrendData): string {
+function dataTable(sel: Series[], data: TrendData, kind: TrendKind): string {
   if (!sel.length) return '';
-  return `<div style="overflow-x:auto"><table><thead><tr><th>Period</th>${sel.map((s) => `<th class="num">${esc(s.name)}</th>`).join('')}<th class="num">Alla utgifter</th></tr></thead><tbody>
-    ${data.periods.map((p, i) => `<tr><td>${esc(p.label)}</td>${sel.map((s) => `<td class="num">${fmtKr2.format(s.values[i])}</td>`).join('')}<td class="num">${fmtKr2.format(data.totalExpense[i])}</td></tr>`).join('')}
+  const tot = kind === 'balance' ? null : { name: TOTAL_WORDS[kind][0], values: data.totals[kind] };
+  return `<div style="overflow-x:auto"><table><thead><tr><th>Period</th>${sel.map((s) => `<th class="num">${esc(s.name)}</th>`).join('')}${tot ? `<th class="num">${tot.name}</th>` : ''}</tr></thead><tbody>
+    ${data.periods.map((p, i) => `<tr><td>${esc(p.label)}</td>${sel.map((s) => `<td class="num">${fmtKr2.format(s.values[i])}</td>`).join('')}${tot ? `<td class="num">${fmtKr2.format(tot.values[i])}</td>` : ''}</tr>`).join('')}
     </tbody></table></div>`;
 }
 
 /* ---------- Grafen (SVG) ---------- */
-let current: { data: TrendData; ui: TrendUi } | null = null;
+let current: { data: TrendData; ui: TrendUi; pool: Series[]; kind: TrendKind } | null = null;
 
 const el = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>, parent?: Element) => {
   const e = document.createElementNS(SVG, tag);
@@ -145,27 +175,29 @@ const tickFormat = (max: number) => (v: number) =>
 function drawChart(): void {
   const box = $opt('#trendChart');
   if (!box || !current) return;
-  const { data, ui } = current;
-  const sel = data.series.filter((s) => ui.slots[s.id]);
+  const { data, ui, pool, kind } = current;
+  const series = pool.filter((s) => ui.slots[s.id]);
+  const balance = kind === 'balance';
+  const showTotal = !balance && ui.total;
   box.innerHTML = '';
   if (!data.periods.length) { box.innerHTML = '<p class="muted">Ingen data att visa.</p>'; return; }
-  if (!sel.length && !ui.total) { box.innerHTML = '<p class="muted" style="padding:40px 0;text-align:center">Välj en eller flera kategorier ovan.</p>'; return; }
+  if (!series.length && !showTotal) { box.innerHTML = '<p class="muted" style="padding:40px 0;text-align:center">Välj en eller flera ovan.</p>'; return; }
 
   const W = box.clientWidth || 600, narrow = W < 560;
   const H = narrow ? 240 : 320;
   const n = data.periods.length;
-  const stack = ui.chart === 'stack';
-  // Staplat: bara utgifter/sparande (inkomster staplas inte ihop med utgifter)
-  const series = stack ? sel.filter((s) => s.type !== 'income') : sel;
-  const rest = data.totalExpense.map((t, i) => Math.max(0, t - series.filter((s) => s.type === 'expense').reduce((a, s) => a + s.values[i], 0)));
-  const showTotal = ui.total;
+  const stack = !balance && ui.chart === 'stack';
+  // Totalen för vyns typ (alla serier i vyn har samma typ, utom i "Inkomst mot utgift" som saknar total)
+  const [totalName, restName] = balance ? ['', ''] : TOTAL_WORDS[kind];
+  const totalVals = balance ? [] : data.totals[kind];
+  const rest = totalVals.map((t, i) => Math.max(0, t - series.reduce((a, s) => a + s.values[i], 0)));
 
   let lo = 0, hi = 1;
   if (stack) {
     for (let i = 0; i < n; i++) hi = Math.max(hi, series.reduce((a, s) => a + Math.max(0, s.values[i]), 0) + (showTotal ? rest[i] : 0));
   } else {
     for (const s of series) for (const v of s.values) { hi = Math.max(hi, v); lo = Math.min(lo, v); }
-    if (showTotal) for (const v of data.totalExpense) hi = Math.max(hi, v);
+    if (showTotal) for (const v of totalVals) { hi = Math.max(hi, v); lo = Math.min(lo, v); }
   }
   const ticks = niceTicks(lo, hi);
   lo = ticks[0]; hi = ticks[ticks.length - 1];
@@ -178,7 +210,7 @@ function drawChart(): void {
   const xAt = (i: number) => m.l + (stack ? step * (i + 0.5) : n > 1 ? step * i : pw / 2);
   const yAt = (v: number) => m.t + ph - ((v - lo) / (hi - lo)) * ph;
 
-  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img', 'aria-label': 'Utgifter över tid per kategori' }, box);
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img', 'aria-label': `${KINDS.find((k) => k[0] === kind)![1]} över tid` }, box);
   // Rutnät och y-axel
   const compact = tickFormat(Math.max(Math.abs(lo), hi));
   for (const t of ticks) {
@@ -217,10 +249,10 @@ function drawChart(): void {
       el('path', { d, fill: 'none', stroke, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', class: cls }, svg);
       if (n === 1 || vals.length) el('circle', { cx: xAt(n - 1), cy: yAt(vals[n - 1]), r: 4, fill: stroke, class: 'ring' }, svg);
     };
-    if (showTotal) line(data.totalExpense, 'var(--rest)');
+    if (showTotal) line(totalVals, 'var(--rest)');
     for (const s of series) line(s.values, color(ui.slots[s.id]));
     if (endLabels) {
-      const labs = [...series.map((s) => ({ name: s.name, y: yAt(s.values[n - 1]) })), ...(showTotal ? [{ name: 'Alla utgifter', y: yAt(data.totalExpense[n - 1]) }] : [])]
+      const labs = [...series.map((s) => ({ name: s.name, y: yAt(s.values[n - 1]) })), ...(showTotal ? [{ name: totalName, y: yAt(totalVals[n - 1]) }] : [])]
         .sort((a, b) => a.y - b.y);
       // Krockar etiketterna hoppar vi över dem – förklaringen ovan och tooltipen räcker
       if (labs.every((l, i) => !i || l.y - labs[i - 1].y >= 14)) {
@@ -245,7 +277,7 @@ function drawChart(): void {
     cross.setAttribute('visibility', 'visible');
     dots.innerHTML = '';
     const rows: { name: string; v: number; c: string }[] = series.map((s) => ({ name: s.name, v: s.values[i], c: color(ui.slots[s.id]) }));
-    if (showTotal) rows.push(stack ? { name: 'Övriga utgifter', v: rest[i], c: 'var(--rest)' } : { name: 'Alla utgifter', v: data.totalExpense[i], c: 'var(--rest)' });
+    if (showTotal) rows.push(stack ? { name: restName, v: rest[i], c: 'var(--rest)' } : { name: totalName, v: totalVals[i], c: 'var(--rest)' });
     if (!stack) for (const row of rows) el('circle', { cx: xAt(i), cy: yAt(row.v), r: 4, fill: row.c, class: 'ring' }, dots);
     tip.replaceChildren();
     const head = document.createElement('div');

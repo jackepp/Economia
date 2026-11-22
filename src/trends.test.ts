@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { replaceState } from './state';
-import { buildTrends, defaultTrendUi, isoWeek, trendStats } from './trends';
+import { balanceSeries, buildTrends, defaultTrendUi, isoWeek, trendStats } from './trends';
 import type { Transaction } from './types';
 
 const tx = (id: string, date: string, amount: number, categoryId: string | null): Transaction =>
@@ -32,6 +32,19 @@ describe('trender', () => {
     expect(sub.series.find((s) => s.id === 'bil_drivm')!.name).toBe('Bil › Drivmedel');
     expect(sub.series.find((s) => s.id === 'transp')!.name).toBe('Bil › övrigt');
     expect(sub.partial).toBe(true);
+  });
+
+  it('totaler per typ och "Inkomst mot utgift"', () => {
+    replaceState({ transactions: [
+      tx('a', '2026-08-03', -4000, 'mat'), tx('b', '2026-08-25', 30000, 'inkomst'), tx('c', '2026-08-26', -5000, 'spar'),
+      tx('d', '2026-09-03', -6000, 'mat'), tx('e', '2026-09-25', 31000, 'inkomst'), tx('f', '2026-09-28', 1000, 'spar'),
+    ] });
+    const d = buildTrends(defaultTrendUi(), undefined, '2027-01-01');
+    expect(d.totals).toEqual({ expense: [4000, 6000], income: [30000, 31000], saving: [5000, -1000] });
+    const bal = balanceSeries(d);
+    expect(bal.map((s) => s.name)).toEqual(['Inkomster', 'Utgifter', 'Sparande', 'Kvar']);
+    // Uttag från sparandet (−1000) ökar det som blir kvar
+    expect(bal.find((s) => s.id === '=kvar')!.values).toEqual([21000, 26000]);
   });
 
   it('trend: lutning och pågående period räknas inte', () => {

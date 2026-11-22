@@ -25,6 +25,21 @@ nav button.active{background:var(--panel2);color:var(--text);font-weight:600}
 select,input[type=text],input[type=search]{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:6px 8px}
 select{cursor:pointer}
 select:disabled{cursor:not-allowed}
+/* Nyare Chrome/Edge: rullistans val ritas av sidan, så de kan få hand-pekare och appens färger.
+   Övriga webbläsare (Safari, Firefox, iPhone) behåller den vanliga rullistan. */
+@supports (appearance: base-select){
+  select,::picker(select){appearance:base-select}
+  select{display:inline-flex;align-items:center;gap:6px}
+  select::picker-icon{color:var(--muted);font-size:11px;transition:rotate .15s}
+  select:open::picker-icon{rotate:180deg}
+  ::picker(select){border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);box-shadow:0 6px 20px rgba(16,24,40,.18);padding:4px;max-height:min(420px,70vh)}
+  select option{cursor:pointer;padding:5px 10px;border-radius:6px;white-space:pre}
+  select option:hover,select option:focus-visible{background:var(--panel2);outline:none}
+  select option:checked{font-weight:600}
+  select option::checkmark{color:var(--accent)}
+  select option:disabled{cursor:not-allowed;color:var(--muted)}
+  select optgroup{font-weight:600;color:var(--muted)}
+}
 .btn{font:inherit;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:6px 12px;border-radius:8px;cursor:pointer}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
 .btn.danger{color:var(--neg)}

@@ -59,7 +59,12 @@ export interface TrendUi {
   /** Valda serier (kategori-id, '_' = okategoriserat) → färgplats 1–8. Färgen följer serien. */
   slots: Record<string, number>;
   total: boolean;
+  /** Vad som visas: en typ av kategorier, eller inkomst mot utgift och sparande. */
+  kind?: TrendKind;
+  /** Sparade val per vy, så varje vy minns sina serier. */
+  slotsBy?: Partial<Record<TrendKind, Record<string, number>>>;
 }
+export type TrendKind = 'expense' | 'income' | 'saving' | 'balance';
 
 export interface UiState {
   view: View;

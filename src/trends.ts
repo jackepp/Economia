@@ -16,6 +16,8 @@ export interface TrendData {
   series: Series[];
   /** Summa av alla utgiftsserier per period. */
   totalExpense: number[];
+  /** Summa per typ och period. */
+  totals: Record<Series['type'], number[]>;
   /** Sista perioden pågår fortfarande (räknas inte i trenden). */
   partial: boolean;
 }
@@ -83,7 +85,8 @@ function seriesOf(t: Transaction, level: TrendUi['level']): { id: string; name: 
  */
 export function buildTrends(ui: TrendUi, txs: Transaction[] = S.transactions, today = isoDate(new Date())): TrendData {
   const dated = txs.filter((t) => typeOf(t) !== 'transfer');
-  if (!dated.length) return { periods: [], series: [], totalExpense: [], partial: false };
+  const empty = (): TrendData => ({ periods: [], series: [], totalExpense: [], totals: { expense: [], income: [], saving: [] }, partial: false });
+  if (!dated.length) return empty();
   const last = dated.reduce((m, t) => (t.date > m ? t.date : m), dated[0].date);
   let cutoff = '';
   if (ui.range > 0) {
@@ -92,7 +95,7 @@ export function buildTrends(ui: TrendUi, txs: Transaction[] = S.transactions, to
     cutoff = isoDate(d);
   }
   const inRange = dated.filter((t) => t.date >= cutoff);
-  if (!inRange.length) return { periods: [], series: [], totalExpense: [], partial: false };
+  if (!inRange.length) return empty();
   const first = inRange.reduce((m, t) => (t.date < m ? t.date : m), inRange[0].date);
   const periods = periodsBetween(first, last, ui.gran);
   const idx = new Map(periods.map((p, i) => [p.key, i]));
@@ -111,9 +114,25 @@ export function buildTrends(ui: TrendUi, txs: Transaction[] = S.transactions, to
   const order = new Map<string, number>(orderedCats().map((c, i) => [c.id, i]));
   const series = [...map.values()].filter((s) => Math.abs(s.total) >= 0.5)
     .sort((a, b) => (order.get(a.id) ?? 999) - (order.get(b.id) ?? 999));
-  const totalExpense = periods.map((_, i) => series.filter((s) => s.type === 'expense').reduce((sum, s) => sum + s.values[i], 0));
+  const sumOf = (type: Series['type']) =>
+    periods.map((_, i) => Math.round(series.filter((s) => s.type === type).reduce((sum, s) => sum + s.values[i], 0) * 100) / 100);
+  const totals = { expense: sumOf('expense'), income: sumOf('income'), saving: sumOf('saving') };
   const partial = periods[periods.length - 1].key === periodKey(today, ui.gran);
-  return { periods, series, totalExpense, partial };
+  return { periods, series, totalExpense: totals.expense, totals, partial };
+}
+
+/** Vyn "Inkomst mot utgift": totalerna per typ, och vad som blir kvar. */
+export function balanceSeries(data: TrendData): Series[] {
+  const mk = (id: string, name: string, type: Series['type'], values: number[]): Series =>
+    ({ id, name, type, values, total: values.reduce((a, b) => a + b, 0) });
+  const { income, expense, saving } = data.totals;
+  return [
+    mk('=in', 'Inkomster', 'income', income),
+    mk('=ut', 'Utgifter', 'expense', expense),
+    mk('=spar', 'Sparande', 'saving', saving),
+    // Kvar = inkomster − utgifter − sparande; uppåt är bra
+    mk('=kvar', 'Kvar', 'income', income.map((v, i) => Math.round((v - expense[i] - saving[i]) * 100) / 100)),
+  ];
 }
 
 export interface TrendStats { avg: number; last: number | null; vsAvg: number | null; slope: number }
