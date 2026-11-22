@@ -6,6 +6,7 @@ import { go, setPeriod, setRenderer } from './nav';
 import { allMonths, S, save } from './state';
 import { session, startSession } from './sync';
 import type { View } from './types';
+import { initVersion } from './version';
 import { renderBoard } from './views/board';
 import { renderImport } from './views/import';
 import { showCat, renderList } from './views/list';
@@ -83,4 +84,5 @@ window.addEventListener('drop', (e) => {
   if (session.user && e.dataTransfer?.files.length) void importFiles([...e.dataTransfer.files]);
 });
 
+initVersion();
 void startSession();

@@ -91,6 +91,10 @@ dialog::backdrop{background:rgba(10,14,22,.45)}
 body.loggedout nav, body.loggedout #importBtn, body.loggedout label:has(#period), body.loggedout #sync{display:none}
 input[type=email],input[type=password]{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:9px 10px}
 #sync{font-size:12px;white-space:nowrap}
+/* Versionsrad längst ner */
+#version{text-align:center;font-size:12px;padding:8px 16px calc(16px + env(safe-area-inset-bottom))}
+#version a{color:inherit}
+#version .btn{font-size:12px;padding:3px 10px;margin-left:4px}
 /* Mobil (iPhone) */
 header{padding-top:max(10px, env(safe-area-inset-top))}
 @media (max-width:700px){
