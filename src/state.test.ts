@@ -48,16 +48,6 @@ describe('underkategorier', () => {
     expect(S.transactions.map((t) => t.categoryId)).toEqual(['bil_besikt', 'bil_rep', 'bil_serv']);
   });
 
-  it('migrerar v5: Bolånebanken flyttas från Räkningar till Amortering + ränta', () => {
-    const old: State = defaultState();
-    old.rulesVersion = 5;
-    old.rules = old.rules.map((r) => (r.pattern === 'bolanebank' ? { ...r, categoryId: 'rakn' } : r));
-    old.transactions = [{ ...tx('a', -3000), kind: 'Autogiro' }];
-    replaceState(old);
-    normalize();
-    expect(S.transactions[0].categoryId).toBe('boende_lan');
-  });
-
   it('räknar underkategorier till huvudkategorin', () => {
     replaceState({ transactions: [tx('a', 'x', -100), tx('b', 'y', -50)] });
     S.transactions[0].categoryId = 'bil_drivm';

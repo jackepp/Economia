@@ -24,6 +24,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # Publicera aldrig om känslig data har tagit sig in i repot
+      - run: node scripts/check-sensitive.mjs --all
       - run: npm ci
       - run: npm test
       - run: npm run build

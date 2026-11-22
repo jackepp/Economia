@@ -124,11 +124,6 @@ export function normalize(): boolean {
     if (serv?.name === 'Service & reparation') serv.name = 'Service';
     changed = true;
   }
-  // Migrering v6: Bolånebanken (bolån) flyttas från Räkningar till Boende › Amortering + ränta
-  if ((S.rulesVersion || 1) < 6 && catById('boende_lan')) {
-    for (const r of S.rules) if (!r.learned && r.pattern === 'bolanebank' && r.categoryId === 'rakn') r.categoryId = 'boende_lan';
-    changed = true;
-  }
   // Migrering: lägg till nya standardregler när RULES_VERSION höjs (befintliga regler lämnas orörda)
   if ((S.rulesVersion || 1) < RULES_VERSION) {
     const have = new Set(S.rules.map((r) => r.pattern));

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Stoppar commit-meddelanden som innehåller känslig data
+exec node scripts/check-sensitive.mjs --msg "$1"

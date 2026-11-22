@@ -60,3 +60,11 @@ $env:SWB_PDF='C:\sökväg\swedbank.pdf'; $env:REV_PDF='C:\sökväg\revolut.pdf';
   Skyddet är inloggningen + Row Level Security.
 - Lägg **aldrig** in `service_role`- eller `sb_secret_`-nyckeln i koden.
 - Kontoutdrag (`.pdf`, `.csv`) och säkerhetskopior (`.json`) är blockerade i `.gitignore`.
+- `scripts/check-sensitive.mjs` letar efter personnummer, kort- och kontonummer, IBAN, e-postadresser,
+  nycklar och förbjudna filtyper. Den körs
+  - före varje commit och på commit-meddelandet (git-hooks i `.githooks/`; slå på en gång per klon med
+    `git config core.hooksPath .githooks`),
+  - i GitHub Actions innan något publiceras.
+- Personliga ord (namn, adress, kortets sista siffror …) läggs i `.git/info/sensitive-words`, ett per rad.
+  Filen ligger inne i `.git` och kan aldrig följa med till GitHub.
+- Använd bara påhittad testdata i tester och kommentarer.

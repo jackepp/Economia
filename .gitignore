@@ -8,8 +8,15 @@
 !package-lock.json
 !tsconfig.json
 
-# Tillfälliga testfiler
+# Tillfälliga testfiler och gamla lokala versioner (kan innehålla personliga regler)
 _localtest/
+utgifter.html
+
+# Hemligheter
+.env
+.env.*
+*.pem
+*.key
 
 # Bygg och beroenden
 node_modules/

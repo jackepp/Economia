@@ -1,0 +1,3 @@
+#!/bin/sh
+# Stoppar commits som innehåller känslig data (se scripts/check-sensitive.mjs)
+exec node scripts/check-sensitive.mjs
