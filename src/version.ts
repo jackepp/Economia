@@ -12,7 +12,8 @@ function renderVersion(newer?: string): void {
   el.innerHTML = `Version <a href="${REPO}/commit/${__APP_VERSION__}" target="_blank" rel="noopener">${__APP_VERSION__}</a>` +
     ` · byggd ${fmtTime(__BUILD_TIME__)}${dev}` +
     (newer ? ` · <button class="btn primary" id="reloadBtn">Ny version ${newer} – ladda om</button>` : '');
-  if (newer) $('#reloadBtn').onclick = () => location.reload();
+  // Ny adress (?v=…) så att webbläsaren inte visar sin sparade kopia av sidan (GitHub Pages cachar i 10 min)
+  if (newer) $('#reloadBtn').onclick = () => location.replace(`${location.pathname}?v=${newer}`);
 }
 
 /** Hämtar version.json från servern och visar en knapp om en nyare version är publicerad. */
