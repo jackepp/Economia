@@ -11,7 +11,7 @@ const DEFAULT_CATS: Category[] = (
     ['rest', 'Restaurang & café', '#ef6c00', 'expense'],
     ['boende', 'Boende & el', '#6d4c41', 'expense'],
     ['rakn', 'Räkningar & abonnemang', '#546e7a', 'expense'],
-    ['transp', 'Transport', '#1e63c4', 'expense'],
+    ['transp', 'Bil', '#1e63c4', 'expense'],
     ['shop', 'Shopping', '#c2185b', 'expense'],
     ['noje', 'Nöje & streaming', '#7b3fb0', 'expense'],
     ['halsa', 'Hälsa & träning', '#00897b', 'expense'],
@@ -93,6 +93,9 @@ export function normalize(): boolean {
     S.rulesVersion = RULES_VERSION;
     changed = true;
   }
+  // Migrering: "Transport" heter nu "Bil" (bara om namnet inte redan ändrats för hand)
+  const transp = S.categories.find((c) => c.id === 'transp' && c.name === 'Transport');
+  if (transp) { transp.name = 'Bil'; changed = true; }
   if (changed) autoCategorize(S);
   return changed;
 }
