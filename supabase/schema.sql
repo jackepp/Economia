@@ -1,4 +1,4 @@
--- money-dash: tabeller och säkerhetsregler
+-- Economia: tabeller och säkerhetsregler
 -- Kör en gång i Supabase → SQL Editor → New query → klistra in → Run.
 -- Säkert att köra igen (allt är "if not exists" / ersätts).
 

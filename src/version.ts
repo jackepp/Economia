@@ -1,7 +1,7 @@
 import { $ } from './dom';
 import { LOCAL_MODE } from './sync';
 
-const REPO = 'https://github.com/jackepp/money-dash';
+const REPO = 'https://github.com/jackepp/Economia';
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleString('sv-SE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });

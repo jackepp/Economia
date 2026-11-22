@@ -1,7 +1,7 @@
-# money-dash – installation
+# Economia – installation
 
 Appen är byggd med Vite + TypeScript och sparar data i Supabase. Koden ligger i ett publikt GitHub-repo och publiceras
-med GitHub Pages på <https://jackepp.github.io/money-dash/>. Ingen data finns i repot – den ligger i Supabase bakom inloggning.
+med GitHub Pages på <https://jackepp.github.io/Economia/>. Ingen data finns i repot – den ligger i Supabase bakom inloggning.
 
 ## 1. Supabase: skapa tabellerna (en gång)
 
@@ -23,8 +23,8 @@ med GitHub Pages på <https://jackepp.github.io/money-dash/>. Ingen data finns i
 1. Repot → **Settings → General** → längst ner under *Danger Zone* → **Change visibility → Public**.
 2. **Settings → Pages** → *Build and deployment* → Source: **GitHub Actions**.
 3. Varje push till `main` kör testerna, bygger och publicerar (se fliken **Actions**). Efter ett par minuter finns
-   appen på <https://jackepp.github.io/money-dash/>.
-4. I Supabase: **Authentication → URL Configuration → Site URL** = `https://jackepp.github.io/money-dash/`.
+   appen på <https://jackepp.github.io/Economia/>.
+4. I Supabase: **Authentication → URL Configuration → Site URL** = `https://jackepp.github.io/Economia/`.
 
 ## 4. iPhone
 

@@ -54,6 +54,7 @@ setRenderer(render);
 
 /* ---------- Sidhuvud ---------- */
 for (const b of $$('#tabs button')) b.onclick = () => go(b.dataset.view as View);
+$('#brand').onclick = (e) => { e.preventDefault(); go('overview'); };
 periodSel.onchange = () => { S.ui.period = periodSel.value; save(); render(); };
 const fileInput = $<HTMLInputElement>('#fileInput');
 $('#importBtn').onclick = () => fileInput.click();

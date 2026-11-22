@@ -18,6 +18,12 @@
 body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 header h1{font-size:17px;margin:0 8px 0 0}
+.brand{display:inline-flex;align-items:center;gap:9px;color:var(--text);text-decoration:none;border-radius:10px}
+.brand:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.brand-mark{width:30px;height:30px;flex:none;filter:drop-shadow(0 1px 2px rgba(16,24,40,.18))}
+.brand-name{font-size:21px;font-weight:750;letter-spacing:-.03em;line-height:1}
+.brand-accent{background:linear-gradient(135deg,#3b82f6,#14b8a6);-webkit-background-clip:text;background-clip:text;color:transparent}
+@media (prefers-color-scheme: dark){ .brand-accent{background-image:linear-gradient(135deg,#60a5fa,#2dd4bf)} }
 nav{display:flex;gap:4px;flex-wrap:wrap}
 nav button{background:none;border:0;padding:7px 12px;border-radius:8px;color:var(--muted);font:inherit;cursor:pointer}
 nav button.active{background:var(--panel2);color:var(--text);font-weight:600}
