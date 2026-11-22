@@ -1,6 +1,7 @@
 # money-dash – installation
 
-Appen är en enda sida (`index.html`) som sparar data i Supabase. Koden ligger i ett privat GitHub-repo och publiceras med Cloudflare Pages.
+Appen är en enda sida (`index.html`) som sparar data i Supabase. Koden ligger i ett publikt GitHub-repo och publiceras med GitHub Pages på
+<https://jackepp.github.io/money-dash/>. Ingen data finns i repot – den ligger i Supabase bakom inloggning.
 
 ## 1. Supabase: skapa tabellerna (en gång)
 
@@ -13,27 +14,18 @@ Appen är en enda sida (`index.html`) som sparar data i Supabase. Koden ligger i
 
 1. **Authentication → Users → Add user → Create new user**.
 2. Fyll i e-post och ett starkt lösenord, och kryssa i **Auto Confirm User**.
-3. **Authentication → Sign In / Providers**: stäng av **Allow new users to sign up**,
-   så att ingen annan kan skapa ett konto.
+3. **Authentication → Sign In / Providers**: stäng av **Allow new users to sign up**.
+   **Viktigt** eftersom koden är publik: annars kan vem som helst skapa ett konto i ditt projekt
+   (de skulle bara se sina egna tomma rader, men kunna använda ditt databasutrymme).
 
-## 3. Cloudflare Pages: publicera appen
+## 3. GitHub Pages: publicera appen
 
-1. Skapa ett gratiskonto på cloudflare.com.
-2. **Compute (Workers & Pages) → Create → Pages → Connect to Git** → välj GitHub-repot `money-dash`
-   (ge Cloudflare åtkomst till just det repot).
-3. Inställningar för bygget:
-   - Framework preset: **None**
-   - Build command: *(tomt)*
-   - Build output directory: `/`
-4. **Save and Deploy**. Du får en adress som `https://money-dash-xxx.pages.dev`.
-   Varje gång koden pushas till `main` publiceras en ny version automatiskt.
-5. I Supabase: **Authentication → URL Configuration → Site URL** = adressen från steg 4.
-
-### Valfritt: lås hela sidan bakom inloggning (Cloudflare Access)
-
-**Zero Trust → Access → Applications → Add an application → Self-hosted**, ange adressen ovan
-och en policy *Include → Emails → din e-post*. Då måste man ange en engångskod från e-posten
-innan sidan ens laddas.
+1. Repot → **Settings → General** → längst ner under *Danger Zone* → **Change visibility → Public**.
+2. **Settings → Pages** → *Build and deployment*: Source **Deploy from a branch**,
+   Branch **main** och mapp **/ (root)** → **Save**.
+3. Efter en minut eller två finns appen på <https://jackepp.github.io/money-dash/>.
+   Varje push till `main` publiceras automatiskt.
+4. I Supabase: **Authentication → URL Configuration → Site URL** = `https://jackepp.github.io/money-dash/`.
 
 ## 4. iPhone
 
