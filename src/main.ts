@@ -7,7 +7,6 @@ import { allMonths, S, save } from './state';
 import { session, startSession } from './sync';
 import type { View } from './types';
 import { initVersion } from './version';
-import { renderBoard } from './views/board';
 import { renderImport } from './views/import';
 import { showCat, renderList } from './views/list';
 import { renderLogin } from './views/login';
@@ -37,7 +36,6 @@ const VIEWS: Record<View, (main: HTMLElement) => void> = {
   overview: renderOverview,
   trends: renderTrends,
   uncat: renderUncat,
-  board: renderBoard,
   list: renderList,
   settings: renderSettings,
   import: (m) => renderImport(m, false),
@@ -48,6 +46,7 @@ function render(): void {
   if (!session.user) return renderLogin(main);
   if (!session.ready) { main.innerHTML = '<div class="empty">Hämtar din data…</div>'; return; }
   renderPeriod();
+  if (!VIEWS[S.ui.view]) S.ui.view = 'overview'; // t.ex. den borttagna Sortera-fliken
   for (const b of $$('#tabs button')) b.classList.toggle('active', b.dataset.view === S.ui.view);
   const n = uncatCount(), badge = $('#uncatCount');
   badge.textContent = String(n);
@@ -62,7 +61,9 @@ for (const b of $$('#tabs button')) b.onclick = () => go(b.dataset.view as View)
 $('#brand').onclick = (e) => { e.preventDefault(); go('overview'); };
 periodSel.onchange = () => { S.ui.period = periodSel.value; save(); render(); };
 const fileInput = $<HTMLInputElement>('#fileInput');
-$('#importBtn').onclick = () => fileInput.click();
+// På mobil leder "+" till Importera-fliken (med instruktionerna); på datorn öppnas filväljaren direkt
+const phone = matchMedia('(max-width:700px)');
+$('#importBtn').onclick = () => (phone.matches ? go('import') : fileInput.click());
 fileInput.onchange = () => { void importFiles([...(fileInput.files || [])]); fileInput.value = ''; };
 
 /* ---------- Klick i vyerna (data-go, data-show-cat, data-period) ---------- */

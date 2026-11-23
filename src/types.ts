@@ -46,7 +46,7 @@ export interface Transaction {
   mark?: string;
 }
 
-export type View = 'overview' | 'uncat' | 'trends' | 'board' | 'list' | 'settings' | 'import';
+export type View = 'overview' | 'uncat' | 'trends' | 'list' | 'settings' | 'import';
 
 export interface TrendUi {
   /** Upplösning på x-axeln. */

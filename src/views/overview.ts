@@ -111,7 +111,7 @@ function savingCard(mData: MonthData[]): string {
       ${stat('Totalt sparat (visade månader)', kr(total))}${stat('Snitt per månad', kr(avg))}${rate !== null ? stat('Sparkvot', rate + '%') : ''}
     </div>
     ${!mData.some((d) => d.saved)
-      ? `<p class="muted">Inga sparöverföringar hittades. Överföringar vars beskrivning innehåller "Avanza" hamnar här automatiskt – annars kan du dra dem till kategorin <b>${esc(sc.name)}</b> under Sortera.</p>`
+      ? `<p class="muted">Inga sparöverföringar hittades. Överföringar vars beskrivning innehåller "Avanza" hamnar här automatiskt – annars kan du välja kategorin <b>${esc(sc.name)}</b> för dem under Okategoriserat eller Transaktioner.</p>`
       : `<div class="months" style="height:180px">${mData.map((d) => {
           cum += d.saved;
           return `<div class="mcol ${S.ui.period === 'M:' + d.m ? 'sel' : ''}" data-period="M:${d.m}" title="${monthLabel(d.m)}\nSparat: ${kr(d.saved)}\nAckumulerat: ${kr(cum)}${d.inc > 0 ? `\nAndel av inkomst: ${Math.round((d.saved / d.inc) * 100)}%` : ''}">

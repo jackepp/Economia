@@ -80,38 +80,6 @@ table{width:100%;border-collapse:collapse}
 th,td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}
 th{font-size:12px;color:var(--muted);font-weight:600}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-/* Sortera */
-.board{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;align-items:start}
-.col{background:var(--panel);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;max-height:560px;transition:background .1s}
-.col.over{background:var(--drop);outline:2px dashed var(--accent)}
-.col.uncat{grid-row:span 2;max-height:1132px;border-width:2px}
-.colhead{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px}
-.colhead b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.colbody{padding:8px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;min-height:60px}
-.tx{background:var(--panel2);border-radius:8px;padding:7px 9px;cursor:grab;border-left:4px solid transparent;user-select:none}
-.tx:active{cursor:grabbing}
-.tx.dragging{opacity:.4}
-.tx .d{font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tx .m{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
-/* Underkategorier i Sortera: chips i kolumnhuvudet, etikett på kortet, släppytor vid dragning */
-.col{position:relative}
-.subchips{display:flex;flex-wrap:wrap;gap:4px;padding:7px 10px 0}
-.subchip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);background:var(--panel2);border-radius:999px;padding:2px 8px}
-.subchip b{color:var(--text);font-weight:600}
-.subchip .dot,.subtag .dot{width:7px;height:7px;margin:0}
-.subtag{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);margin:1px 0}
-.subdrop{display:none;position:absolute;left:-2px;right:-2px;top:42px;z-index:20;flex-direction:column;gap:6px;padding:10px;
-  background:var(--panel);border:2px solid var(--accent);border-radius:12px;box-shadow:0 14px 34px rgba(16,24,40,.28);animation:subdrop-in .14s ease-out}
-.col.over .subdrop{display:flex}
-.subdrop-title{font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:0 2px 2px}
-.subt{display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:9px;border:1px dashed var(--border);background:var(--panel2);font-weight:550;transition:background .08s,border-color .08s,transform .08s}
-.subt *{pointer-events:none}
-.subt .n{flex:1}
-.subt.main{background:transparent}
-.subt.hot{background:var(--drop);border:1px solid var(--accent);transform:scale(1.02)}
-.board.dragmode .col:not(.over){opacity:.8}
-@keyframes subdrop-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
-@media (prefers-reduced-motion: reduce){ .subdrop{animation:none} .subt{transition:none} .subt.hot{transform:none} }
 .badge{display:inline-block;background:var(--accent);color:var(--accent-text);border-radius:10px;padding:0 7px;font-size:11px;margin-left:4px}
 #dropzone{border:2px dashed var(--border);border-radius:12px;padding:36px;text-align:center;cursor:pointer}
 #dropzone.over{background:var(--drop);border-color:var(--accent)}
@@ -147,7 +115,7 @@ th{font-size:12px;color:var(--muted);font-weight:600}
 input[type=color]{width:34px;height:28px;border:0;background:none;padding:0;cursor:pointer}
 .catrow{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)}
 .catrow input[type=text]{flex:1;min-width:0}
-.tx .note,.lnote{font-size:12px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lnote{font-size:12px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lnote{white-space:normal}
 /* Redigeringsdialog */
 dialog{border:1px solid var(--border);border-radius:14px;background:var(--panel);color:var(--text);padding:20px;width:min(760px,calc(100vw - 32px));max-height:85vh;box-shadow:0 20px 50px rgba(0,0,0,.3)}
@@ -167,7 +135,6 @@ label.check{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--m
 .iconbtn:hover{background:var(--panel2);color:var(--text)}
 tr.txrow{cursor:pointer}
 tr.txrow:hover td{background:var(--panel2)}
-@media (max-width:640px){ .edfields{grid-template-columns:1fr 1fr} .edfields > :nth-child(3){grid-column:1 / -1} }
 /* Inloggning */
 body.loggedout nav, body.loggedout #importBtn, body.loggedout label:has(#period), body.loggedout #sync{display:none}
 input[type=email],input[type=password]{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:9px 10px}
@@ -196,29 +163,79 @@ input[type=email],input[type=password]{font:inherit;color:var(--text);background
 #version{text-align:center;font-size:12px;padding:8px 16px calc(16px + env(safe-area-inset-bottom))}
 #version a{color:inherit}
 #version .btn{font-size:12px;padding:3px 10px;margin-left:4px}
-/* Mobil (iPhone) */
+/* Flikikoner och korta namn används bara på mobil */
+.ti,.ts,.ib-icon{display:none}
+button,a,.tri,tr.txrow{-webkit-tap-highlight-color:transparent}
+/* ---------- Mobil (iPhone) ---------- */
 header{padding-top:max(10px, env(safe-area-inset-top))}
 @media (max-width:700px){
-  header{padding-left:12px;padding-right:12px;gap:8px}
-  header h1{font-size:16px}
-  nav{order:10;width:100%;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-  nav button{white-space:nowrap;padding:8px 10px}
-  #importBtn{padding:6px 10px}
-  main{padding:12px 12px calc(24px + env(safe-area-inset-bottom))}
-  .card{padding:12px}
+  /* Kompakt sidhuvud på en rad */
+  header{flex-wrap:nowrap;gap:8px;padding:max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left))}
+  header h1{margin:0}
+  .brand{gap:7px}
+  .brand-mark{width:26px;height:26px}
+  .brand-name{font-size:19px}
+  .plabel{display:none}
+  #period{max-width:128px;padding:5px 8px}
+  #sync{font-size:11px}
+  #importBtn{width:36px;height:36px;padding:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .ib-full{display:none}
+  .ib-icon{display:block;width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+  /* Flikrad längst ner, som i iOS-appar */
+  nav{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(5,1fr);gap:0;
+    padding:6px max(4px, env(safe-area-inset-left)) calc(4px + env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-right));
+    background:color-mix(in srgb, var(--panel) 88%, transparent);-webkit-backdrop-filter:blur(16px) saturate(1.6);backdrop-filter:blur(16px) saturate(1.6);border-top:1px solid var(--border)}
+  nav button{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0 2px;border-radius:10px;font-size:10.5px;color:var(--muted);transition:transform .1s}
+  nav button:active{transform:scale(.92)}
+  nav button.active{background:none;color:var(--accent);font-weight:600}
+  nav button[data-view=import]{display:none}
+  .ti{display:block;width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  nav button.active .ti{stroke-width:2.1}
+  .tl{display:none}
+  .ts{display:block;white-space:nowrap}
+  .tabcount{position:absolute;top:0;left:calc(50% + 5px);margin:0;min-width:17px;padding:0 5px;font-size:10px;line-height:16px;box-shadow:0 0 0 2px var(--panel)}
+  main{padding:12px max(12px, env(safe-area-inset-right)) calc(84px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left))}
+  #version{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+  #toast{bottom:calc(80px + env(safe-area-inset-bottom));width:max-content;max-width:calc(100vw - 24px)}
+  .card{padding:12px;border-radius:14px}
   .kpis{grid-template-columns:1fr 1fr;gap:10px}
   .kpi .value{font-size:19px}
   .grid{gap:12px}
-  .board{grid-template-columns:1fr}
-  .col,.col.uncat{max-height:none;grid-row:auto}
-  .colbody{max-height:60vh}
-  .txtable th:nth-child(3),.txtable td:nth-child(3){display:none}
-  .txtable td,.txtable th{padding:7px 5px}
-  .txtable select{max-width:130px}
+  .two{grid-template-columns:minmax(0,1fr)}
+  .grid > *{min-width:0}
+  .months{height:180px}
   .toolbar input[type=search]{min-width:0!important;flex:1 1 100%}
   /* iOS zoomar in på fält med text under 16px */
   input,select,textarea{font-size:16px!important}
-  dialog{padding:14px;width:calc(100vw - 16px);max-height:90vh}
-  .months{height:180px}
+  /* Översikt: namn och belopp på en rad, stapeln under */
+  .barrow{grid-template-columns:minmax(0,1fr) auto;row-gap:5px;column-gap:10px;padding:6px 0}
+  .barrow > .bartrack{grid-column:1 / -1;grid-row:2;height:7px}
+  .barrow > .num{grid-column:2;grid-row:1}
+  .barrow.sub .bartrack{height:5px;margin-left:16px}
+  /* Transaktioner som kort i stället för tabell */
+  .txtable thead{display:none}
+  .txtable,.txtable tbody{display:block}
+  .txtable tr{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"d a" "t e" "c c";column-gap:10px;padding:11px 2px;border-bottom:1px solid var(--border)}
+  .txtable td{border:0;padding:0}
+  .txtable td:nth-child(1){grid-area:t;font-size:12px;color:var(--muted);align-self:center}
+  .txtable td:nth-child(2){grid-area:d;min-width:0}
+  .txtable td:nth-child(3){display:none}
+  .txtable td:nth-child(4){grid-area:a;font-weight:600;font-size:15px;text-align:right}
+  .txtable td:nth-child(5){grid-area:c;display:flex;align-items:center;margin-top:8px}
+  .txtable td:nth-child(5) select{flex:1;min-width:0;max-width:none}
+  .txtable td:nth-child(6){grid-area:e;justify-self:end}
+  tr.txrow:active{background:var(--panel2)}
+  /* Kategorier: namnet får plats, resten bryts till nästa rad */
+  .catrow{flex-wrap:wrap;row-gap:6px}
+  .catrow:not(.sub) input[type=text]{flex:1 1 calc(100% - 50px)}
+  .catrow:not(.sub) select{flex:1}
+  /* Redigera: ark som glider upp nerifrån */
+  dialog{margin:auto 0 0;width:100%;max-width:100%;max-height:88vh;border-radius:18px 18px 0 0;border-bottom:0;
+    padding:10px max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left))}
+  dialog::before{content:"";display:block;width:38px;height:5px;border-radius:3px;background:var(--border);margin:0 auto 10px}
+  dialog[open]{animation:sheet-up .22s ease-out}
+  .edfields{grid-template-columns:1fr}
+  dialog .toolbar .btn{flex:1;padding:10px}
 }
-@media (max-width:640px){ .barrow{grid-template-columns:110px 1fr 90px} .two{grid-template-columns:1fr} }
+@keyframes sheet-up{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion: reduce){ dialog[open]{animation:none} nav button{transition:none} }
