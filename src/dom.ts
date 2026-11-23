@@ -11,12 +11,21 @@ export const $$ = <T extends HTMLElement = HTMLElement>(sel: string, root: Paren
 ];
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
-export function toast(msg: string): void {
+/** Kort meddelande längst ner; med action visas en knapp (t.ex. "Ångra") och meddelandet stannar längre. */
+export function toast(msg: string, action?: { label: string; run: () => void }): void {
   const el = $('#toast');
   el.textContent = msg;
+  if (action) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'toastbtn';
+    b.textContent = action.label;
+    b.onclick = () => { el.style.display = 'none'; clearTimeout(toastTimer); action.run(); };
+    el.append(' ', b);
+  }
   el.style.display = 'block';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (el.style.display = 'none'), 4500);
+  toastTimer = setTimeout(() => (el.style.display = 'none'), action ? 8000 : 4500);
 }
 
 export const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(e));

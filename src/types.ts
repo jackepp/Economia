@@ -46,7 +46,7 @@ export interface Transaction {
   mark?: string;
 }
 
-export type View = 'overview' | 'trends' | 'board' | 'list' | 'settings' | 'import';
+export type View = 'overview' | 'uncat' | 'trends' | 'board' | 'list' | 'settings' | 'import';
 
 export interface TrendUi {
   /** Upplösning på x-axeln. */
@@ -73,6 +73,8 @@ export interface UiState {
   learn: boolean;
   group: boolean;
   trends?: TrendUi;
+  /** Okategoriserat: visa alla perioder (standard) eller bara vald period. */
+  uncatAll?: boolean;
 }
 
 export interface State {

@@ -51,7 +51,7 @@ export function renderOverview(main: HTMLElement): void {
     <div class="card kpi"><div class="label">Inkomster</div><div class="value">${kr(inc)}</div></div>
     <div class="card kpi"><div class="label">Sparat</div><div class="value" style="color:${savingColor}">${kr(saved)}${savePct !== null ? ' ' + small(`${savePct}% av inkomst`) : ''}</div></div>
     <div class="card kpi"><div class="label">Kvar efter sparande</div><div class="value ${inc - exp - saved < 0 ? 'neg' : 'pos'}">${kr(inc - exp - saved)}</div></div>
-    <div class="card kpi" style="cursor:pointer" data-go="board"><div class="label">Okategoriserade</div><div class="value">${uncat} ${small('st → sortera')}</div></div>
+    <div class="card kpi" style="cursor:pointer" data-go="uncat"><div class="label">Okategoriserade</div><div class="value">${uncat} ${small('st → kategorisera')}</div></div>
   </div>
   ${foreign ? `<p class="muted">Obs: ${foreign} transaktioner är i annan valuta än SEK och räknas just nu som SEK.</p>` : ''}
   <div class="grid two" style="margin-top:16px">

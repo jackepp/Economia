@@ -14,6 +14,7 @@ import { renderLogin } from './views/login';
 import { renderOverview } from './views/overview';
 import { renderSettings } from './views/settings';
 import { renderTrends } from './views/trends';
+import { renderUncat, uncatCount } from './views/uncat';
 
 const main = $('#main');
 const periodSel = $<HTMLSelectElement>('#period');
@@ -35,6 +36,7 @@ function renderPeriod(): void {
 const VIEWS: Record<View, (main: HTMLElement) => void> = {
   overview: renderOverview,
   trends: renderTrends,
+  uncat: renderUncat,
   board: renderBoard,
   list: renderList,
   settings: renderSettings,
@@ -47,6 +49,9 @@ function render(): void {
   if (!session.ready) { main.innerHTML = '<div class="empty">Hämtar din data…</div>'; return; }
   renderPeriod();
   for (const b of $$('#tabs button')) b.classList.toggle('active', b.dataset.view === S.ui.view);
+  const n = uncatCount(), badge = $('#uncatCount');
+  badge.textContent = String(n);
+  badge.hidden = !n;
   if (!S.transactions.length && S.ui.view !== 'settings') return renderImport(main, true);
   (VIEWS[S.ui.view] || renderOverview)(main);
 }
